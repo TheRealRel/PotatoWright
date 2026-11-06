@@ -1,9 +1,10 @@
 // Icons for the 15 stance pieces of each mannequin (the game has none; the emote pieces use the game's emote icons).
 // Made in the game, once at start, from the mannequin itself: a copy of the piece is put in the stance (its own
-// animator, run forward), drawn plain white by Jötunn's RenderManager, and turned into the emote icons' look: an orange
-// figure (the emote icons' colour, read from T_emote_wave: RGB 215,153,72) with dark lines where the shading jumps
-// (limbs over the body), on a soft dark shadow. Nothing of the game's art is shipped; the icon is drawn on each PC.
+// animator, run forward), drawn plain white by Jötunn's RenderManager, and turned into the emote icons' look: a solid
+// orange figure (the emote icons' colour, read from T_emote_wave: RGB 215,153,72) shaded by the render's light, on a
+// soft dark shadow. Nothing of the game's art is shipped; the icon is drawn on each PC.
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Jotunn.Managers;
 using UnityEngine;
@@ -13,10 +14,6 @@ namespace PotatoWright
     internal static class MannequinIcons
     {
         private static readonly Color32 Fill = new Color32(215, 153, 72, 255);
-        private static readonly Color32 Line = new Color32(52, 34, 20, 255);
-        // Tuned offline on test-d's saved renders (Sobel on 0..1 shading: median 0.3, 90th percentile 0.73): 0.8 keeps the
-        // lines where limbs cross the body and drops the soft shading.
-        private const float EdgeThreshold = 0.8f;
         internal const int Size = 128, RenderSize = 256, Fit = 118;
 
         // The piece's icon becomes its stance's picture; false if it couldn't be made (the piece keeps its icon).
@@ -143,73 +140,134 @@ namespace PotatoWright
             return outp;
         }
 
-        // The white render -> the emote icons' look.
+        // The white render -> the emote icons' look: a solid orange figure (the emote icons' colour), shaded softly by
+        // the render's own light (darkest 60% of the colour, brightest 106%), with smooth edges, on a soft dark shadow.
+        // Tuned offline on test-h's saved renders (tools/shade.py): test-d/e's Sobel lines left dark specks inside the
+        // figure and along its edge (the user: "still need some filling in"); the emote icons have none, only shading.
+        private const float ShadeLow = 0.6f, ShadeHigh = 1.06f;
+
         private static Texture2D Stylize(Texture2D source)
         {
-            int w = Size, h = Size;
-            Color[] px = Fitted(source);
-            float[] lum = new float[w * h];
-            bool[] inside = new bool[w * h];
-            for (int i = 0; i < px.Length; i++)
+            int w = Size, h = Size, sw = source.width, sh = source.height;
+            Color[] src = source.GetPixels();
+            // The figure's box in the render and the scale that fits it to the icon (as Fitted).
+            int minX = sw, minY = sh, maxX = -1, maxY = -1;
+            float[] alpha = new float[sw * sh], lumA = new float[sw * sh];
+            for (int y = 0; y < sh; y++)
             {
-                inside[i] = px[i].a > 0.5f;
-                lum[i] = px[i].r * 0.3f + px[i].g * 0.59f + px[i].b * 0.11f;
+                for (int x = 0; x < sw; x++)
+                {
+                    Color c = src[y * sw + x];
+                    alpha[y * sw + x] = c.a;
+                    lumA[y * sw + x] = (c.r * 0.3f + c.g * 0.59f + c.b * 0.11f) * c.a;
+                    if (c.a > 0.5f)
+                    {
+                        minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x);
+                        minY = Mathf.Min(minY, y); maxY = Mathf.Max(maxY, y);
+                    }
+                }
             }
+            Texture2D icon = new Texture2D(w, h, TextureFormat.RGBA32, false);
             Color32[] outp = new Color32[w * h];
-            // Soft shadow: the figure's outline grown by 3 pixels, fading out.
-            float[] shadow = new float[w * h];
+            if (maxX < 0)
+            {
+                icon.SetPixels32(outp);
+                icon.Apply();
+                return icon;
+            }
+            float bw = maxX - minX + 1, bh = maxY - minY + 1;
+            float scale = Fit / Mathf.Max(bw, bh);
+            float ox = (w - bw * scale) / 2f, oy = (h - bh * scale) / 2f;
+            // Alpha and light sampled bilinearly (light premultiplied by alpha, so the edge isn't darkened).
+            float[] a = new float[w * h], light = new float[w * h];
+            List<float> inside = new List<float>();
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float sx = minX + (x + 0.5f - ox) / scale - 0.5f, sy = minY + (y + 0.5f - oy) / scale - 0.5f;
+                    float pa = Sample(alpha, sw, sh, sx, sy), pl = Sample(lumA, sw, sh, sx, sy);
+                    int i = y * w + x;
+                    a[i] = pa;
+                    light[i] = (pa > 0.001f) ? pl / pa : 0f;
+                    if (pa > 0.5f) inside.Add(light[i]);
+                }
+            }
+            inside.Sort();
+            float bright = (inside.Count > 0) ? Mathf.Max(0.05f, inside[Mathf.Min(inside.Count - 1, (int)(inside.Count * 0.95f))]) : 1f;
+            // Shadow: the figure grown by 2 pixels and blurred.
+            float[] grown = new float[w * h];
             for (int y = 0; y < h; y++)
             {
                 for (int x = 0; x < w; x++)
                 {
                     float best = 0f;
-                    for (int dy = -3; dy <= 3; dy++)
+                    for (int dy = -2; dy <= 2; dy++)
                     {
-                        for (int dx = -3; dx <= 3; dx++)
+                        for (int dx = -2; dx <= 2; dx++)
                         {
                             int xx = x + dx, yy = y + dy;
-                            if (xx < 0 || yy < 0 || xx >= w || yy >= h || !inside[yy * w + xx]) continue;
-                            float d = Mathf.Sqrt(dx * dx + dy * dy);
-                            best = Mathf.Max(best, 1f - d / 4f);
+                            if (xx >= 0 && yy >= 0 && xx < w && yy < h) best = Mathf.Max(best, a[yy * w + xx]);
                         }
                     }
-                    shadow[y * w + x] = best;
+                    grown[y * w + x] = Mathf.Clamp01(best);
                 }
             }
-            for (int y = 0; y < h; y++)
+            float[] shadow = Blur(grown, w, h, 1.6f);
+            for (int i = 0; i < outp.Length; i++)
             {
-                for (int x = 0; x < w; x++)
-                {
-                    int i = y * w + x;
-                    if (inside[i])
-                    {
-                        // Sobel on the shading, inside the figure only.
-                        float gx = 0f, gy = 0f;
-                        for (int k = 0; k < 9; k++)
-                        {
-                            int dx = k % 3 - 1, dy = k / 3 - 1;
-                            int xx = Mathf.Clamp(x + dx, 0, w - 1), yy = Mathf.Clamp(y + dy, 0, h - 1);
-                            int j = yy * w + xx;
-                            float v = inside[j] ? lum[j] : lum[i];
-                            int wx = (dx == 0) ? 0 : dx * ((dy == 0) ? 2 : 1);
-                            int wy = (dy == 0) ? 0 : dy * ((dx == 0) ? 2 : 1);
-                            gx += v * wx;
-                            gy += v * wy;
-                        }
-                        float edge = Mathf.Sqrt(gx * gx + gy * gy);
-                        outp[i] = (edge > EdgeThreshold) ? Line : Fill;
-                    }
-                    else
-                    {
-                        byte a = (byte)Mathf.RoundToInt(shadow[i] * 150f);
-                        outp[i] = new Color32(25, 18, 12, a);
-                    }
-                }
+                float k = Mathf.Clamp01(light[i] / bright);
+                float m = ShadeLow + (ShadeHigh - ShadeLow) * k;
+                float fa = Mathf.Clamp01(a[i]), ba = shadow[i] * (150f / 255f);
+                float oa = fa + ba * (1f - fa);
+                Color c = (oa > 1e-5f)
+                    ? (new Color(Fill.r / 255f * m, Fill.g / 255f * m, Fill.b / 255f * m) * fa + new Color(25f / 255f, 18f / 255f, 12f / 255f) * ba * (1f - fa)) / oa
+                    : Color.clear;
+                c.a = oa;
+                outp[i] = c;
             }
-            Texture2D icon = new Texture2D(w, h, TextureFormat.RGBA32, false);
             icon.SetPixels32(outp);
             icon.Apply();
             return icon;
+        }
+
+        private static float Sample(float[] map, int w, int h, float x, float y)
+        {
+            int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+            float fx = x - x0, fy = y - y0;
+            return Mathf.Lerp(Mathf.Lerp(At(map, w, h, x0, y0), At(map, w, h, x0 + 1, y0), fx),
+                Mathf.Lerp(At(map, w, h, x0, y0 + 1), At(map, w, h, x0 + 1, y0 + 1), fx), fy);
+        }
+
+        private static float At(float[] map, int w, int h, int x, int y)
+        {
+            return (x < 0 || y < 0 || x >= w || y >= h) ? 0f : map[y * w + x];
+        }
+
+        // Separable Gaussian blur.
+        private static float[] Blur(float[] map, int w, int h, float sigma)
+        {
+            int r = Mathf.CeilToInt(sigma * 3f);
+            float[] kernel = new float[2 * r + 1];
+            float sum = 0f;
+            for (int i = -r; i <= r; i++) { kernel[i + r] = Mathf.Exp(-(i * i) / (2f * sigma * sigma)); sum += kernel[i + r]; }
+            for (int i = 0; i < kernel.Length; i++) kernel[i] /= sum;
+            float[] tmp = new float[w * h], outp = new float[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float v = 0f;
+                    for (int i = -r; i <= r; i++) v += kernel[i + r] * At(map, w, h, x + i, y);
+                    tmp[y * w + x] = v;
+                }
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float v = 0f;
+                    for (int i = -r; i <= r; i++) v += kernel[i + r] * At(tmp, w, h, x, y + i);
+                    outp[y * w + x] = v;
+                }
+            return outp;
         }
     }
 }
