@@ -39,8 +39,6 @@ namespace PotatoWright
 		// Shown names: Ask and Embla, the first man and woman, made by the gods from two trees (Völuspá 17-18).
 		private static readonly string[] BodyNames = new string[2] { "Ask", "Embla" };
 
-		// The hammer tabs.
-		private static readonly string[] Categories = new string[2] { "Mannequins: Male", "Mannequins: Female" };
 
 		// The stand animator's "Pose" values 0 to 14 (ArmorStand_Animator in bundle c4210710).
 		private static readonly string[] StandPoses = new string[15]
@@ -250,7 +248,24 @@ namespace PotatoWright
 				}
 			}
 			Plugin.Debug("Mannequin pieces: " + s_pieces.Count);
+			PieceManager.OnPiecesRegistered += ClearUsage;
 		}
+
+		// Jötunn gives a piece with no usage tags the Misc tag when it adds it to the hammer; the mannequins are listed
+		// only under the Mannequins entry, so they carry none.
+		private static void ClearUsage()
+		{
+			foreach (GameObject piece in s_pieces)
+			{
+				Piece p = (piece != null) ? piece.GetComponent<Piece>() : null;
+				if (p != null)
+				{
+					p.m_usage = 0;
+				}
+			}
+		}
+
+		internal static IEnumerable<GameObject> Pieces => s_pieces;
 
 		private static void Make(int body, string key, string label, int standPose, int emote)
 		{
@@ -262,7 +277,8 @@ namespace PotatoWright
 				Name = (emote < 0) ? (bodyLabel + ": " + label) : (bodyLabel + ", " + Text("potatowright_emote", "emote") + ": " + label),
 				Description = "$potatowright_mannequin_description",
 				PieceTable = "Hammer",
-				Category = Categories[body],
+				// Listed under the build menu's own fold-open Mannequins entry (MannequinMenu), not a tab of their own.
+				Category = "Misc",
 				CraftingStation = "piece_workbench",
 				Requirements = new[]
 				{
@@ -291,8 +307,13 @@ namespace PotatoWright
 			}
 			MannequinPose pose = piece.AddComponent<MannequinPose>();
 			pose.m_standPose = standPose;
+			pose.m_body = body;
 			pose.m_emote = emote;
 			piece.AddComponent<MannequinTint>();
+			if (emote < 0 && !MannequinIcons.Make(piece, standPose, name))
+			{
+				Plugin.Debug("Stance icon for " + name + " not made");
+			}
 			PieceManager.Instance.AddPiece(custom);
 			s_pieces.Add(piece);
 		}
@@ -475,6 +496,9 @@ namespace PotatoWright
 		public int m_standPose = -1;
 
 		public int m_emote = -1;
+
+		// 0 Ask (male), 1 Embla (female).
+		public int m_body;
 
 		private const float EmoteTimeout = 6f;
 
