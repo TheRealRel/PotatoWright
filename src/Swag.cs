@@ -249,6 +249,12 @@ namespace PotatoWright
         private float m_sag = -1f;
         private int m_misses;
         private float m_start;
+        private Transform m_lastParent;
+        private bool m_parentKnown;
+
+        // Build On Ship (Skarif) marks pieces built on a ship with this ZDO string and parents them to the ship once it
+        // has loaded (ShipPiecesContainer.RegisterPiece).
+        private static readonly int ShipParentKey = "ShipBuild_ParentUUID".GetStableHashCode();
 
         private static MaterialPropertyBlock s_red;
         private bool m_invalid;
@@ -268,7 +274,8 @@ namespace PotatoWright
             m_start = Time.time;
             if (s_holdMask == 0)
             {
-                s_holdMask = LayerMask.GetMask("piece", "Default", "static_solid", "Default_small", "terrain");
+                // The game's support mask, plus vehicle (28) so an end on a ship's own hull or mast holds.
+                s_holdMask = LayerMask.GetMask("piece", "Default", "static_solid", "Default_small", "terrain", "vehicle");
             }
             ZDO zdo = (m_nview != null) ? m_nview.GetZDO() : null;
             if (zdo == null)
@@ -323,7 +330,9 @@ namespace PotatoWright
             {
                 m_visual.layer = gameObject.layer;
             }
-            Vector3 down = transform.InverseTransformDirection(Vector3.down);
+            // The swag hangs along its own down: the piece is always placed upright (world up on land; the ship's up on a
+            // ship, so it hangs straight for the deck however the ship rolls when it loads).
+            Vector3 down = Vector3.down;
             List<Vector3> points = Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 2f), 8, 40));
             if (!GUIManager.IsHeadless())
             {
@@ -685,8 +694,37 @@ namespace PotatoWright
             {
                 return;
             }
+            // On a ship (Build On Ship): wait until it has been parented to its ship, and give it the usual grace again
+            // whenever its parent changes, so ends aren't tested while the ship and its pieces are still loading.
+            if (!m_parentKnown || transform.parent != m_lastParent)
+            {
+                m_parentKnown = true;
+                m_lastParent = transform.parent;
+                m_start = Time.time;
+                m_misses = 0;
+                Ship parentShip = GetComponentInParent<Ship>();
+                if (parentShip != null)
+                {
+                    Plugin.Debug("Swag " + name + " rides the ship " + parentShip.name + " at " + parentShip.transform.InverseTransformPoint(transform.position));
+                }
+                return;
+            }
+            Ship ship = GetComponentInParent<Ship>();
+            if (ship == null && !string.IsNullOrEmpty(m_nview.GetZDO().GetString(ShipParentKey)))
+            {
+                return;
+            }
+            if (ship != null)
+            {
+                // A moving ship's colliders can be a physics step behind their transforms.
+                Physics.SyncTransforms();
+            }
             Vector3 a = transform.position, b = transform.TransformPoint(m_end);
             bool heldA = Held(a), heldB = Held(b);
+            if (ship != null && Plugin.TestBuild)
+            {
+                Plugin.Debug("Swag " + name + " on " + ship.name + ": ends held " + heldA + "/" + heldB + ", support " + m_nview.GetZDO().GetFloat(ZDOVars.s_support, -1f).ToString("0") + ", health " + m_nview.GetZDO().GetFloat(ZDOVars.s_health, -1f).ToString("0"));
+            }
             if (heldA && heldB)
             {
                 m_misses = 0;
@@ -717,6 +755,10 @@ namespace PotatoWright
     {
         private static bool s_hasFirst;
         private static Vector3 s_first;
+        // The first end on a ship (Build On Ship): kept in the ship's own space so it moves with the ship.
+        private static Ship s_firstShip;
+        private static bool s_firstOnShip;
+        private static Vector3 s_firstLocal;
         private static string s_firstPiece;
         private static float s_sag = 0.15f;
         private static float s_wheel;
@@ -731,11 +773,25 @@ namespace PotatoWright
                 return;
             }
             s_hasFirst = false;
+            s_firstShip = null;
+            s_firstOnShip = false;
             if (tell && player != null)
             {
                 player.Message(MessageHud.MessageType.Center, "$potatowright_swag_cancel");
             }
             Plugin.Debug("Swag: first end dropped");
+        }
+
+        // The ship under the aim, if any: the ship itself or a piece Build On Ship has parented to it. The game's own
+        // placement ray and mask (it includes vehicle).
+        private static Ship ShipUnderAim(Player player)
+        {
+            if (GameCamera.instance == null)
+            {
+                return null;
+            }
+            Transform cam = GameCamera.instance.transform;
+            return Physics.Raycast(cam.position, cam.forward, out RaycastHit hit, 50f, player.m_placeRayMask) ? hit.collider.GetComponentInParent<Ship>() : null;
         }
 
         private static Swag GhostSwag(Player player)
@@ -764,10 +820,17 @@ namespace PotatoWright
                 swag.Preview(new Vector3(0f, -0.3f, 0f), 0f);
                 return;
             }
+            if (s_firstShip != null)
+            {
+                s_first = s_firstShip.transform.TransformPoint(s_firstLocal);
+            }
+            // Upright for the world, or for the ship the swag will ride (Build On Ship attaches it to the ship under the
+            // second end), facing the second end.
+            Ship ship = ShipUnderAim(__instance) ?? s_firstShip;
+            Vector3 up = (ship != null) ? ship.transform.up : Vector3.up;
             Vector3 b = ghost.transform.position;
-            Vector3 flat = b - s_first;
-            flat.y = 0f;
-            Quaternion rot = (flat.sqrMagnitude > 0.0001f) ? Quaternion.LookRotation(flat) : Quaternion.identity;
+            Vector3 flat = Vector3.ProjectOnPlane(b - s_first, up);
+            Quaternion rot = (flat.sqrMagnitude > 0.0001f) ? Quaternion.LookRotation(flat, up) : ((ship != null) ? ship.transform.rotation : Quaternion.identity);
             ghost.transform.position = s_first;
             ghost.transform.rotation = rot;
             s_end = Quaternion.Inverse(rot) * (b - s_first);
@@ -800,6 +863,16 @@ namespace PotatoWright
         {
             if (__instance != Player.m_localPlayer || !s_hasFirst)
             {
+                return;
+            }
+            if (s_firstShip != null)
+            {
+                s_first = s_firstShip.transform.TransformPoint(s_firstLocal);
+            }
+            else if (s_firstOnShip)
+            {
+                // The ship the first end was on is gone.
+                Cancel(__instance, true);
                 return;
             }
             Piece selected = __instance.InPlaceMode() ? __instance.GetSelectedPiece() : null;
@@ -842,10 +915,13 @@ namespace PotatoWright
                 }
                 s_hasFirst = true;
                 s_first = __instance.m_placementGhost.transform.position;
+                s_firstShip = ShipUnderAim(__instance);
+                s_firstOnShip = s_firstShip != null;
+                s_firstLocal = s_firstOnShip ? s_firstShip.transform.InverseTransformPoint(s_first) : Vector3.zero;
                 s_firstPiece = piece.name;
                 s_wheel = 0f;
                 __instance.Message(MessageHud.MessageType.Center, "$potatowright_swag_first");
-                Plugin.Debug("Swag " + piece.name + ": first end at " + s_first);
+                Plugin.Debug("Swag " + piece.name + ": first end at " + s_first + (s_firstOnShip ? " on the ship " + s_firstShip.name + " at " + s_firstLocal : ""));
                 __result = false;
                 return false;
             }
@@ -879,6 +955,8 @@ namespace PotatoWright
             if (__result)
             {
                 s_hasFirst = false;
+                s_firstShip = null;
+                s_firstOnShip = false;
             }
             Swag.s_pending = false;
         }
