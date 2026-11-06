@@ -15,6 +15,8 @@ namespace PotatoWright
     // know the pieces (a server deletes pieces it doesn't know).
     [BepInPlugin(Id, "PotatoWright", Version)]
     [BepInDependency(Jotunn.Main.ModGuid)]
+    // Build On Ship (Skarif), when installed, loads first so ShipCompat can find its support code.
+    [BepInDependency(ShipCompat.BuildOnShipGuid, BepInDependency.DependencyFlags.SoftDependency)]
     [NetworkCompatibility(CompatibilityLevel.EveryoneMustHaveMod, VersionStrictness.Minor)]
     public class Plugin : BaseUnityPlugin
     {
