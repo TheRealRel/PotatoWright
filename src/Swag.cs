@@ -68,6 +68,9 @@ namespace PotatoWright
                     {
                         FlatChain[k] = new Material(Wire) { name = "potatowright_flatchain_" + k };
                         if (FlatChain[k].HasProperty("_Color")) FlatChain[k].SetColor("_Color", FlatTint[k]);
+                        // The line repeats its texture once per metre (LineTextureMode.Tile). The chain picture is
+                        // square (two links), so it repeats once per line width: links keep their shape at any length.
+                        if (FlatChain[k].HasProperty("_MainTex")) FlatChain[k].SetTextureScale("_MainTex", new Vector2(1f / Swag.ChainWidth, 1f));
                     }
                     if (Links)
                     {
@@ -195,7 +198,7 @@ namespace PotatoWright
         private bool m_invalid;
 
         private const float LinkLength = 0.12f, LinkWidth = 0.07f, LinkWire = 0.013f;
-        private const float RopeWidth = 0.05f, ChainWidth = 0.12f;
+        internal const float RopeWidth = 0.05f, ChainWidth = 0.12f;
 
         private void Awake()
         {
