@@ -14,8 +14,10 @@ namespace PotatoWright
     {
         private static readonly Color32 Fill = new Color32(215, 153, 72, 255);
         private static readonly Color32 Line = new Color32(52, 34, 20, 255);
-        private const float EdgeThreshold = 0.12f;
-        private const int Size = 128;
+        // Tuned offline on test-d's saved renders (Sobel on 0..1 shading: median 0.3, 90th percentile 0.73): 0.8 keeps the
+        // lines where limbs cross the body and drops the soft shading.
+        private const float EdgeThreshold = 0.8f;
+        private const int Size = 128, RenderSize = 256, Fit = 118;
 
         // The piece's icon becomes its stance's picture; false if it couldn't be made (the piece keeps its icon).
         internal static bool Make(GameObject prefab, int pose, string name)
@@ -65,8 +67,8 @@ namespace PotatoWright
                 Sprite render = RenderManager.Instance.Render(new RenderManager.RenderRequest(copy)
                 {
                     Rotation = Quaternion.Euler(0f, 160f, 0f),
-                    Width = Size,
-                    Height = Size,
+                    Width = RenderSize,
+                    Height = RenderSize,
                     UseCache = false,
                 });
                 if (render == null || render.texture == null)
@@ -102,11 +104,50 @@ namespace PotatoWright
             }
         }
 
+        // The figure cut out of the render and scaled to fill the icon (a sitting figure is small in its render).
+        private static Color[] Fitted(Texture2D source)
+        {
+            int minX = source.width, minY = source.height, maxX = -1, maxY = -1;
+            Color[] src = source.GetPixels();
+            for (int y = 0; y < source.height; y++)
+            {
+                for (int x = 0; x < source.width; x++)
+                {
+                    if (src[y * source.width + x].a > 0.5f)
+                    {
+                        minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x);
+                        minY = Mathf.Min(minY, y); maxY = Mathf.Max(maxY, y);
+                    }
+                }
+            }
+            Color[] outp = new Color[Size * Size];
+            if (maxX < 0)
+            {
+                return outp;
+            }
+            float w = maxX - minX + 1, h = maxY - minY + 1;
+            float scale = Fit / Mathf.Max(w, h);
+            float ox = (Size - w * scale) / 2f, oy = (Size - h * scale) / 2f;
+            for (int y = 0; y < Size; y++)
+            {
+                for (int x = 0; x < Size; x++)
+                {
+                    float sx = minX + (x + 0.5f - ox) / scale, sy = minY + (y + 0.5f - oy) / scale;
+                    if (sx < minX - 1 || sy < minY - 1 || sx > maxX + 1 || sy > maxY + 1)
+                    {
+                        continue;
+                    }
+                    outp[y * Size + x] = source.GetPixelBilinear(sx / source.width, sy / source.height);
+                }
+            }
+            return outp;
+        }
+
         // The white render -> the emote icons' look.
         private static Texture2D Stylize(Texture2D source)
         {
-            int w = source.width, h = source.height;
-            Color[] px = source.GetPixels();
+            int w = Size, h = Size;
+            Color[] px = Fitted(source);
             float[] lum = new float[w * h];
             bool[] inside = new bool[w * h];
             for (int i = 0; i < px.Length; i++)
