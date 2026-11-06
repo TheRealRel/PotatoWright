@@ -17,7 +17,7 @@ namespace PotatoWright
         // Tuned offline on test-d's saved renders (Sobel on 0..1 shading: median 0.3, 90th percentile 0.73): 0.8 keeps the
         // lines where limbs cross the body and drops the soft shading.
         private const float EdgeThreshold = 0.8f;
-        private const int Size = 128, RenderSize = 256, Fit = 118;
+        internal const int Size = 128, RenderSize = 256, Fit = 118;
 
         // The piece's icon becomes its stance's picture; false if it couldn't be made (the piece keeps its icon).
         internal static bool Make(GameObject prefab, int pose, string name)
@@ -105,7 +105,7 @@ namespace PotatoWright
         }
 
         // The figure cut out of the render and scaled to fill the icon (a sitting figure is small in its render).
-        private static Color[] Fitted(Texture2D source)
+        internal static Color[] Fitted(Texture2D source)
         {
             int minX = source.width, minY = source.height, maxX = -1, maxY = -1;
             Color[] src = source.GetPixels();

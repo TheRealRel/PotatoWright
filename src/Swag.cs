@@ -123,12 +123,16 @@ namespace PotatoWright
                     }
                 }
             }
-            Sprite rope = ItemIcon("LeatherScraps"), chain = ItemIcon("Chain");
+            // Icons drawn in the game from the swags' own models (a coil of the rope, a short length of each chain in its own
+            // metal); the borrowed item icons only if a drawing fails.
+            Sprite chain = ItemIcon("Chain");
+            Sprite rope = SwagIcons.Rope() ?? ItemIcon("LeatherScraps");
+            Sprite iron = SwagIcons.Chain(1) ?? chain, bronze = SwagIcons.Chain(2) ?? chain, black = SwagIcons.Chain(3) ?? chain;
             // Saved in worlds: never rename.
             Add("PotatoWright_SwagRope", "piece_potatowright_swag_rope", 0, false, "wood_pole", "piece_workbench", "LeatherScraps", 2, rope);
-            Add("PotatoWright_SwagChainIron", "piece_potatowright_swag_iron", 1, true, "iron_grate", "forge", "Iron", 1, chain);
-            Add("PotatoWright_SwagChainBronze", "piece_potatowright_swag_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, chain);
-            Add("PotatoWright_SwagChainBlackMetal", "piece_potatowright_swag_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, chain);
+            Add("PotatoWright_SwagChainIron", "piece_potatowright_swag_iron", 1, true, "iron_grate", "forge", "Iron", 1, iron);
+            Add("PotatoWright_SwagChainBronze", "piece_potatowright_swag_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, bronze);
+            Add("PotatoWright_SwagChainBlackMetal", "piece_potatowright_swag_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, black);
             if (Plugin.TestBuild)
             {
                 // TEST ONLY: the old look-test pieces (3D links, now the real chains' look). Kept so ones already placed in
@@ -422,7 +426,7 @@ namespace PotatoWright
         }
 
         // Points every `spacing` metres along the curve (PotatoFarmer's Post.Resample, 600 rings at most).
-        private static List<Vector3> Resample(List<Vector3> points, float spacing)
+        internal static List<Vector3> Resample(List<Vector3> points, float spacing)
         {
             float total = 0f;
             for (int i = 1; i < points.Count; i++) total += Vector3.Distance(points[i - 1], points[i]);
@@ -446,7 +450,7 @@ namespace PotatoWright
 
         // A round tube through the points, in the swag's local space (PotatoFarmer's Post.Tube). With strands, the surface
         // swells over each of the three strands and dips into the grooves between them, twisting along the rope.
-        private static Mesh Tube(List<Vector3> points, int sides, bool strands)
+        internal static Mesh Tube(List<Vector3> points, int sides, bool strands)
         {
             int rings = points.Count;
             Vector3[] vertices = new Vector3[rings * (sides + 1)];
@@ -521,7 +525,7 @@ namespace PotatoWright
         }
 
         // Interlocking links, each turned a quarter from the one before, a link every inner length along the curve.
-        private static Mesh LinkMesh(List<Vector3> path, bool spikes)
+        internal static Mesh LinkMesh(List<Vector3> path, bool spikes)
         {
             float pitch = LinkLength - 2f * LinkWire;
             List<Vector3> v = new List<Vector3>();
