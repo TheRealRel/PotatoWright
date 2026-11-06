@@ -5,8 +5,8 @@
 //   again: the piece is placed at the first end and keeps the second end and the sag in its ZDO. Both ends snap to
 //   other pieces' snap points (Shift: no snapping), as any piece does. Opening the build menu, choosing another piece or
 //   walking far away drops the first end.
-// - Looks: the rope is the game's own rope (a LineRenderer with the material cart_rope, like ship rigging and carts).
-//   Chains are either the game's flat chain (the grappling hook's: a LineRenderer with GrapplingHookWire, tinted) or
+// - Looks: the rope is PotatoFarmer's hitching post rope (a round tube of three twisting strands with its pixel rope
+//   texture on the game's piece shader), with a plainer tube at a distance. Chains are either the game's flat chain (the grappling hook's: a LineRenderer with GrapplingHookWire, tinted) or
 //   3D links built here (the game's cauldron_chain metal, tinted), with the flat chain at a distance.
 // - Built once from the ZDO, no physics, nothing updated per frame. Colliders are on the piece_nonsolid layer: the
 //   hammer can aim at and remove them, and nothing collides with them.
@@ -49,11 +49,49 @@ namespace PotatoWright
         internal static readonly Material[] FlatChain = new Material[4];
         internal static readonly Material[] LinkMetal = new Material[4];
 
+        // PotatoFarmer's rope look (Post.RopeLook, 1.4.0): the game's piece shader (lit like the pieces) with a twisted-rope
+        // texture drawn in pixels. One turn of the lay: u goes round the rope, v along it. Each of the three strands is a
+        // light band with a dark groove on either side, following the same twist as the tube's shape, with fibres drawn as
+        // lighter flecks.
+        private static Material RopeLook()
+        {
+            Material template = PrefabManager.Cache.GetPrefab<Material>("ironchest");
+            if (!template) return null;
+            Material look = new Material(template) { name = "potatowright_rope" };
+            const int w = 12, h = 12;
+            Texture2D texture = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat, name = "potatowright_rope_d" };
+            Color light = new Color(0.82f, 0.7f, 0.48f);
+            Color mid = new Color(0.66f, 0.54f, 0.35f);
+            Color dark = new Color(0.36f, 0.27f, 0.17f);
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float lay = 3f * (x + 0.5f) / w - (y + 0.5f) / h;
+                    float f = lay - Mathf.Floor(lay);
+                    Color color = (f < 0.12f || f > 0.9f) ? dark : (f < 0.3f || f > 0.75f) ? mid : light;
+                    if (color == light && (x * 7 + y * 3) % 5 == 0) color = Color.Lerp(light, Color.white, 0.25f);
+                    texture.SetPixel(x, y, color);
+                }
+            }
+            texture.Apply();
+            look.SetTexture("_MainTex", texture);
+            if (look.HasProperty("_Color")) look.SetColor("_Color", Color.white);
+            Texture2D black = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            black.SetPixel(0, 0, new Color(0f, 0f, 0f, 0f));
+            black.Apply();
+            if (look.HasProperty("_MetallicTex")) look.SetTexture("_MetallicTex", black);
+            if (look.HasProperty("_MetallicGlossMap")) look.SetTexture("_MetallicGlossMap", black);
+            if (look.HasProperty("_BumpMap")) look.SetTexture("_BumpMap", null);
+            if (look.HasProperty("_Metallic")) look.SetFloat("_Metallic", 0f);
+            return look;
+        }
+
         internal static void Create()
         {
             if (!GUIManager.IsHeadless())
             {
-                Rope = PrefabManager.Cache.GetPrefab<Material>("cart_rope");
+                Rope = RopeLook();
                 Wire = PrefabManager.Cache.GetPrefab<Material>("GrapplingHookWire");
                 Links = PrefabManager.Cache.GetPrefab<Material>("cauldron_chain");
                 if (!Rope || !Wire || !Links)
@@ -198,7 +236,12 @@ namespace PotatoWright
         private bool m_invalid;
 
         private const float LinkLength = 0.12f, LinkWidth = 0.07f, LinkWire = 0.013f;
-        internal const float RopeWidth = 0.05f, ChainWidth = 0.12f;
+        internal const float ChainWidth = 0.12f;
+        // PotatoFarmer's hitching post rope: radius, sides, one turn of the three-strand lay every Twist metres, a ring of
+        // the tube every Spacing metres (so the twist shows). The far tube is plain (no strands) and coarser.
+        private const float RopeRadius = 0.028f, Twist = 0.14f, Spacing = 0.02f;
+        private const int RopeSides = 12, FarSides = 6;
+        private const float FarSpacing = 0.25f;
 
         private void Awake()
         {
@@ -268,7 +311,7 @@ namespace PotatoWright
             {
                 if (m_kind == 0)
                 {
-                    Line(m_visual, points, SwagPieces.Rope, RopeWidth);
+                    RopeWithPlainFar(m_visual, Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 160)));
                 }
                 else if (!m_links)
                 {
@@ -346,6 +389,110 @@ namespace PotatoWright
             line.positionCount = points.Count;
             line.SetPositions(points.ToArray());
             return line;
+        }
+
+        // The rope: the twisted tube up close, a plain six-sided tube beyond (LODGroup, same switch distances as the links).
+        private static void RopeWithPlainFar(GameObject parent, List<Vector3> curve)
+        {
+            Renderer near = TubeObject(parent, "rope", Tube(Resample(curve, Spacing), RopeSides, true));
+            Renderer far = TubeObject(parent, "rope_far", Tube(Resample(curve, FarSpacing), FarSides, false));
+            LODGroup lod = parent.AddComponent<LODGroup>();
+            lod.SetLODs(new[]
+            {
+                new LOD(0.04f, new Renderer[] { near }),
+                new LOD(0.004f, new Renderer[] { far }),
+            });
+            lod.RecalculateBounds();
+        }
+
+        private static Renderer TubeObject(GameObject parent, string name, Mesh mesh)
+        {
+            GameObject go = new GameObject(name);
+            go.transform.SetParent(parent.transform, false);
+            go.layer = parent.layer;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer r = go.AddComponent<MeshRenderer>();
+            if (SwagPieces.Rope) r.sharedMaterial = SwagPieces.Rope;
+            return r;
+        }
+
+        // Points every `spacing` metres along the curve (PotatoFarmer's Post.Resample, 600 rings at most).
+        private static List<Vector3> Resample(List<Vector3> points, float spacing)
+        {
+            float total = 0f;
+            for (int i = 1; i < points.Count; i++) total += Vector3.Distance(points[i - 1], points[i]);
+            int count = Mathf.Clamp(Mathf.CeilToInt(total / spacing), 2, 600) + 1;
+            List<Vector3> result = new List<Vector3>(count);
+            int seg = 1;
+            float segStart = 0f, segLength = Vector3.Distance(points[0], points[1]);
+            for (int i = 0; i < count; i++)
+            {
+                float d = total * i / (count - 1);
+                while (seg < points.Count - 1 && d > segStart + segLength)
+                {
+                    segStart += segLength;
+                    seg++;
+                    segLength = Vector3.Distance(points[seg - 1], points[seg]);
+                }
+                result.Add(Vector3.Lerp(points[seg - 1], points[seg], segLength > 0f ? Mathf.Clamp01((d - segStart) / segLength) : 0f));
+            }
+            return result;
+        }
+
+        // A round tube through the points, in the swag's local space (PotatoFarmer's Post.Tube). With strands, the surface
+        // swells over each of the three strands and dips into the grooves between them, twisting along the rope.
+        private static Mesh Tube(List<Vector3> points, int sides, bool strands)
+        {
+            int rings = points.Count;
+            Vector3[] vertices = new Vector3[rings * (sides + 1)];
+            Vector3[] normals = new Vector3[vertices.Length];
+            Vector2[] uvs = new Vector2[vertices.Length];
+            int[] triangles = new int[(rings - 1) * sides * 6];
+            float along = 0f;
+            for (int i = 0; i < rings; i++)
+            {
+                Vector3 dir = (i < rings - 1 ? points[i + 1] - points[i] : points[i] - points[i - 1]).normalized;
+                if (i > 0) along += Vector3.Distance(points[i], points[i - 1]);
+                Vector3 a = Vector3.Cross(dir, Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.95f ? Vector3.right : Vector3.up).normalized;
+                Vector3 b = Vector3.Cross(dir, a);
+                for (int k = 0; k <= sides; k++)
+                {
+                    float angle = k * Mathf.PI * 2f / sides;
+                    Vector3 n = a * Mathf.Cos(angle) + b * Mathf.Sin(angle);
+                    int v = i * (sides + 1) + k;
+                    float swell = 1f;
+                    if (strands)
+                    {
+                        float lay = 3f * k / sides - along / Twist;
+                        swell = 0.84f + 0.16f * Mathf.Cos(lay * Mathf.PI * 2f);
+                    }
+                    else
+                    {
+                        swell = 0.92f;
+                    }
+                    vertices[v] = points[i] + n * (RopeRadius * swell);
+                    normals[v] = n;
+                    uvs[v] = new Vector2(k / (float)sides, along / Twist);
+                }
+            }
+            int tri = 0;
+            for (int i = 0; i < rings - 1; i++)
+            {
+                for (int k = 0; k < sides; k++)
+                {
+                    int v0 = i * (sides + 1) + k, v1 = v0 + 1, v2 = v0 + sides + 1, v3 = v2 + 1;
+                    triangles[tri++] = v0; triangles[tri++] = v2; triangles[tri++] = v1;
+                    triangles[tri++] = v1; triangles[tri++] = v2; triangles[tri++] = v3;
+                }
+            }
+            Mesh mesh = new Mesh { name = "potatowright_rope" };
+            if (vertices.Length > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.vertices = vertices;
+            mesh.normals = normals;
+            mesh.uv = uvs;
+            mesh.triangles = triangles;
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         // 3D links along the curve, and the flat chain beyond close range (LODGroup).
