@@ -136,7 +136,7 @@ namespace PotatoWright
             if (Plugin.TestBuild)
             {
                 // TEST ONLY: the old look-test pieces (3D links, now the real chains' look). Kept so ones already placed in
-                // the test world still load and can be removed with the hammer, but off the build menu (m_enabled false). A
+                // the test world still load and can be removed with the hammer, but not in the hammer's build menu. A
                 // world object whose prefab is gone stays in the save, unseen and unremovable (ZNetScene.CreateObject only
                 // warns "Missing prefab hash"), so none may be left when these go.
                 Add("PotatoWright_TestSwagChainIronLinks", "piece_potatowright_swag_test_iron", 1, true, "iron_grate", "forge", "Iron", 1, chain, false);
@@ -189,7 +189,6 @@ namespace PotatoWright
             piece.m_groundPiece = false;
             piece.m_groundOnly = false;
             if (icon) piece.m_icon = icon;
-            piece.m_enabled = buildable;
             WearNTear wear = prefab.GetComponent<WearNTear>();
             if (wear)
             {
@@ -210,7 +209,17 @@ namespace PotatoWright
             Swag swag = prefab.AddComponent<Swag>();
             swag.m_kind = kind;
             swag.m_links = links;
-            PieceManager.Instance.AddPiece(custom);
+            if (buildable)
+            {
+                PieceManager.Instance.AddPiece(custom);
+            }
+            else
+            {
+                // Not in the hammer at all (Piece.m_enabled false isn't enough: PieceTable.UpdateAvailable lists disabled
+                // pieces when placement cost is off or the world has "all pieces unlocked"), only known to the game so
+                // placed ones load and can be removed. Its mock materials and station are resolved like a piece's.
+                PrefabManager.Instance.AddPrefab(new CustomPrefab(prefab, true));
+            }
             Plugin.Debug("Swag piece " + name + " (" + baseName + " copy, " + item + " x" + amount + " at " + station + ")");
         }
     }
