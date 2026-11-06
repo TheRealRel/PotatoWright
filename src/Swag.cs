@@ -60,6 +60,8 @@ namespace PotatoWright
                 {
                     UnityEngine.Debug.LogWarning(Plugin.Tag + " Rope/chain materials missing: cart_rope " + (bool)Rope + ", GrapplingHookWire " + (bool)Wire + ", cauldron_chain " + (bool)Links + ".");
                 }
+                // Black metal links take the metal colour of the game's black metal (the black metal chest's material).
+                Material blackMetal = PrefabManager.Cache.GetPrefab<Material>("BlackMetalChest_mat");
                 for (int k = 1; k < 4; k++)
                 {
                     if (Wire)
@@ -71,6 +73,11 @@ namespace PotatoWright
                     {
                         LinkMetal[k] = new Material(Links) { name = "potatowright_links_" + k };
                         if (LinkMetal[k].HasProperty("_Color")) LinkMetal[k].SetColor("_Color", LinkTint[k]);
+                        if (k == 3 && blackMetal && blackMetal.HasProperty("_MetalColor") && LinkMetal[k].HasProperty("_MetalColor"))
+                        {
+                            LinkMetal[k].SetColor("_MetalColor", blackMetal.GetColor("_MetalColor"));
+                            Plugin.Debug("Black metal links: metal colour " + blackMetal.GetColor("_MetalColor") + " from BlackMetalChest_mat");
+                        }
                     }
                 }
             }
@@ -344,7 +351,7 @@ namespace PotatoWright
             GameObject go = new GameObject("links");
             go.transform.SetParent(parent.transform, false);
             go.layer = parent.layer;
-            Mesh mesh = LinkMesh(fine);
+            Mesh mesh = LinkMesh(fine, m_kind == 3);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer r = go.AddComponent<MeshRenderer>();
             if (SwagPieces.LinkMetal[m_kind]) r.sharedMaterial = SwagPieces.LinkMetal[m_kind];
@@ -359,7 +366,7 @@ namespace PotatoWright
         }
 
         // Interlocking links, each turned a quarter from the one before, a link every inner length along the curve.
-        private static Mesh LinkMesh(List<Vector3> path)
+        private static Mesh LinkMesh(List<Vector3> path, bool spikes)
         {
             float pitch = LinkLength - 2f * LinkWire;
             List<Vector3> v = new List<Vector3>();
@@ -412,6 +419,14 @@ namespace PotatoWright
                         uv.Add(new Vector2((float)i / ring, (float)j / sides));
                     }
                 }
+                if (spikes)
+                {
+                    // Black metal: a small spike out of the middle of each long side of the link.
+                    for (int sgn = -1; sgn <= 1; sgn += 2)
+                    {
+                        Spike(v, n, uv, tri, c + side * sgn * (bend + LinkWire * 0.6f), side * sgn, t, up);
+                    }
+                }
                 for (int i = 0; i < ring; i++)
                 {
                     int i2 = (i + 1) % ring;
@@ -433,6 +448,36 @@ namespace PotatoWright
             mesh.RecalculateBounds();
             mesh.RecalculateTangents();
             return mesh;
+        }
+
+        // A four-sided spike (flat faces) standing on the link's outer side.
+        private const float SpikeLength = 0.022f, SpikeBase = 0.006f;
+
+        private static void Spike(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tri, Vector3 basePoint, Vector3 outward, Vector3 a, Vector3 b)
+        {
+            Vector3 tip = basePoint + outward * SpikeLength;
+            Vector3[] corners =
+            {
+                basePoint + a * SpikeBase + b * SpikeBase,
+                basePoint - a * SpikeBase + b * SpikeBase,
+                basePoint - a * SpikeBase - b * SpikeBase,
+                basePoint + a * SpikeBase - b * SpikeBase,
+            };
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 p0 = corners[i], p1 = corners[(i + 1) % 4];
+                Vector3 normal = Vector3.Cross(p1 - p0, tip - p0).normalized;
+                if (Vector3.Dot(normal, (p0 + p1) / 2f - basePoint) < 0f)
+                {
+                    normal = -normal;
+                    Vector3 swap = p0; p0 = p1; p1 = swap;
+                }
+                int start = v.Count;
+                v.Add(p0); v.Add(p1); v.Add(tip);
+                n.Add(normal); n.Add(normal); n.Add(normal);
+                uv.Add(Vector2.zero); uv.Add(Vector2.right); uv.Add(Vector2.up);
+                tri.Add(start); tri.Add(start + 2); tri.Add(start + 1);
+            }
         }
 
         // Thin boxes along the curve, about one per metre, on piece_nonsolid: aimed at and removed with the hammer,

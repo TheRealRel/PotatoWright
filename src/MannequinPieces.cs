@@ -205,6 +205,10 @@ namespace PotatoWright
 					}
 					emotes++;
 					Sprite sprite = map.GetMapping((Emotes)pose.m_emote).Sprite;
+					if (Plugin.TestBuild && piece.name.Contains("Male_"))
+					{
+						Plugin.Debug("Mannequin emote icon " + (Emotes)pose.m_emote + ": " + ((sprite != null) ? (sprite.name + " " + sprite.rect.width + "x" + sprite.rect.height + " texture " + ((sprite.texture != null) ? sprite.texture.name : "none")) : "none"));
+					}
 					if (sprite != null)
 					{
 						piece.GetComponent<Piece>().m_icon = sprite;

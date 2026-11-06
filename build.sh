@@ -14,6 +14,6 @@ R=""
 for f in mscorlib System System.Core netstandard UnityEngine UnityEngine.CoreModule UnityEngine.AudioModule UnityEngine.PhysicsModule UnityEngine.AssetBundleModule UnityEngine.ParticleSystemModule UnityEngine.InputLegacyModule UnityEngine.SharedInternalsModule UnityEngine.UI UnityEngine.UIModule UnityEngine.AnimationModule UnityEngine.ClothModule UnityEngine.TextRenderingModule UnityEngine.ImageConversionModule UnityEngine.IMGUIModule assembly_valheim assembly_guiutils assembly_utils Unity.TextMeshPro 0Harmony BepInEx Jotunn; do
   if [ -f "$REFS/pub/$f.dll" ]; then R="$R -r:$REFS/pub/$f.dll"; else R="$R -r:$REFS/$f.dll"; fi
 done
-dotnet "$CSC" -nologo -noconfig -nostdlib -target:library -langversion:9.0 -optimize+ -deterministic \
+dotnet "$CSC" -nologo -noconfig -nostdlib -target:library -langversion:9.0 -optimize+ -unsafe+ -deterministic \
   -out:"$OUT/PotatoWright.dll" $R src/*.cs
 sha256sum "$OUT/PotatoWright.dll"
