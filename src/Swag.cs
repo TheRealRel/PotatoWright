@@ -6,8 +6,9 @@
 //   other pieces' snap points (Shift: no snapping), as any piece does. Opening the build menu, choosing another piece or
 //   walking far away drops the first end.
 // - Looks: the rope is PotatoFarmer's hitching post rope (a round tube of three twisting strands with its pixel rope
-//   texture on the game's piece shader), with a plainer tube at a distance. Chains are either the game's flat chain (the grappling hook's: a LineRenderer with GrapplingHookWire, tinted) or
-//   3D links built here (the game's cauldron_chain metal, tinted), with the flat chain at a distance.
+//   texture on the game's piece shader), with a plainer tube at a distance. Chains are 3D links built here (the game's
+//   cauldron_chain metal, tinted; black metal links have small spikes), with the game's flat chain at a distance (the
+//   grappling hook's: a LineRenderer with GrapplingHookWire, tinted).
 // - Built once from the ZDO, no physics, nothing updated per frame. Colliders are on the piece_nonsolid layer: the
 //   hammer can aim at and remove them, and nothing collides with them.
 // - The game's support check is off (m_noSupportWear false: a long span would always fail it) and nothing can rest on a
@@ -125,15 +126,18 @@ namespace PotatoWright
             Sprite rope = ItemIcon("LeatherScraps"), chain = ItemIcon("Chain");
             // Saved in worlds: never rename.
             Add("PotatoWright_SwagRope", "piece_potatowright_swag_rope", 0, false, "wood_pole", "piece_workbench", "LeatherScraps", 2, rope);
-            Add("PotatoWright_SwagChainIron", "piece_potatowright_swag_iron", 1, false, "iron_grate", "forge", "Iron", 1, chain);
-            Add("PotatoWright_SwagChainBronze", "piece_potatowright_swag_bronze", 2, false, "iron_grate", "forge", "Bronze", 1, chain);
-            Add("PotatoWright_SwagChainBlackMetal", "piece_potatowright_swag_blackmetal", 3, false, "iron_grate", "forge", "BlackMetal", 1, chain);
+            Add("PotatoWright_SwagChainIron", "piece_potatowright_swag_iron", 1, true, "iron_grate", "forge", "Iron", 1, chain);
+            Add("PotatoWright_SwagChainBronze", "piece_potatowright_swag_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, chain);
+            Add("PotatoWright_SwagChainBlackMetal", "piece_potatowright_swag_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, chain);
             if (Plugin.TestBuild)
             {
-                // TEST ONLY: the 3D link look beside the flat one, to choose from. Remove placed ones before the release.
-                Add("PotatoWright_TestSwagChainIronLinks", "piece_potatowright_swag_test_iron", 1, true, "iron_grate", "forge", "Iron", 1, chain);
-                Add("PotatoWright_TestSwagChainBronzeLinks", "piece_potatowright_swag_test_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, chain);
-                Add("PotatoWright_TestSwagChainBlackMetalLinks", "piece_potatowright_swag_test_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, chain);
+                // TEST ONLY: the old look-test pieces (3D links, now the real chains' look). Kept so ones already placed in
+                // the test world still load and can be removed with the hammer, but off the build menu (m_enabled false). A
+                // world object whose prefab is gone stays in the save, unseen and unremovable (ZNetScene.CreateObject only
+                // warns "Missing prefab hash"), so none may be left when these go.
+                Add("PotatoWright_TestSwagChainIronLinks", "piece_potatowright_swag_test_iron", 1, true, "iron_grate", "forge", "Iron", 1, chain, false);
+                Add("PotatoWright_TestSwagChainBronzeLinks", "piece_potatowright_swag_test_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, chain, false);
+                Add("PotatoWright_TestSwagChainBlackMetalLinks", "piece_potatowright_swag_test_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, chain, false);
             }
         }
 
@@ -145,7 +149,7 @@ namespace PotatoWright
             return (icons != null && icons.Length > 0) ? icons[0] : null;
         }
 
-        private static void Add(string name, string token, int kind, bool links, string baseName, string station, string item, int amount, Sprite icon)
+        private static void Add(string name, string token, int kind, bool links, string baseName, string station, string item, int amount, Sprite icon, bool buildable = true)
         {
             CustomPiece custom = new CustomPiece(name, baseName, new PieceConfig
             {
@@ -181,6 +185,7 @@ namespace PotatoWright
             piece.m_groundPiece = false;
             piece.m_groundOnly = false;
             if (icon) piece.m_icon = icon;
+            piece.m_enabled = buildable;
             WearNTear wear = prefab.GetComponent<WearNTear>();
             if (wear)
             {
@@ -601,7 +606,8 @@ namespace PotatoWright
         }
 
         // A four-sided spike (flat faces) standing on the link's outer side.
-        private const float SpikeLength = 0.022f, SpikeBase = 0.006f;
+        // 10% bigger than the first try (the user, 2026-11-06: "10% bigger would be more noticeable").
+        private const float SpikeLength = 0.0242f, SpikeBase = 0.0066f;
 
         private static void Spike(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tri, Vector3 basePoint, Vector3 outward, Vector3 a, Vector3 b)
         {
