@@ -9,9 +9,9 @@
 //   hung by the top of its chains (the user's choice: "Like the game's").
 // - Drying herbs: three thistles and two dandelions tied at the stems, heads down.
 // - Pennant bunting: triangle flags along the whole rope, each with a rune of the Elder Futhark in turn (PotatoPainter's
-//   rune drawings, painted dark on light cloth and light on dark). Two looks, switched with the mouse wheel while placing:
-//   plain coloured cloth (the game's light grey banner cloth, its weave and relief, dyed in the banners' colours) or the
-//   banners' own cloth and patterns. Both on the banners' cloth shader (two-sided).
+//   rune drawings, painted dark on light cloth and light on dark, into the flag's own picture so it moves with the cloth).
+//   Two looks, switched with the mouse wheel while placing: plain cloth (the weave of the game's banner cloth, dyed in
+//   the banners' colours) or the banners' own cloth and patterns. Both on the banners' cloth shader (two-sided).
 // - Test builds only: the drying fish and the fey lights of test-a and test-b (the user: "Remove the fishes and fairy
 //   lights"), kept as prefabs only so the ones placed in the Tester world load and can be removed; they go in the
 //   release.
@@ -40,8 +40,6 @@ namespace PotatoWright
             new Color32(171, 12, 1, 255), new Color32(186, 146, 0, 255), new Color32(5, 68, 151, 255), new Color32(210, 210, 210, 255),
             new Color32(33, 112, 16, 255), new Color32(209, 110, 8, 255), new Color32(138, 67, 188, 255), new Color32(45, 45, 45, 255),
         };
-        // The plain cloth is banner 11's light grey cloth (about 210 of 255), dyed by the material colour.
-        private const float PlainCloth = 210f / 255f;
         // Banner cloth order along the string (piece_bannerNN), and whether its main colour is dark (light rune) or light
         // (dark rune), from each banner's main colour.
         private static readonly int[] ClothOrder = { 4, 8, 2, 11, 5, 10, 9, 1, 3, 6, 7 };
@@ -54,10 +52,9 @@ namespace PotatoWright
             "hagalaz", "naudiz", "isaz", "jera", "ihwaz", "pertho", "algiz", "sowilo",
             "tiwaz", "berkanan", "ehwaz", "mannaz", "laguz", "ingwaz", "dagaz", "othala",
         };
-        private const int RuneColumns = 6, RuneRows = 4, RuneCell = 128;
         private static readonly Color RuneDarkColor = new Color(0.16f, 0.12f, 0.09f), RuneLightColor = new Color(0.93f, 0.88f, 0.78f);
 
-        // Plain: 8 dyed cloths, then the dark and the light runes. Cloth: the banners, then the two runes.
+        // One material per style (the sheet of its flag pictures).
         private static Material[] s_plain, s_cloth;
         internal static GameObject FeyTemplate;
 
@@ -136,98 +133,252 @@ namespace PotatoWright
 
         // ------------------------------------------------------------------ the flags
 
+        // The flags' pictures, made once at start: one cell per flag look, the cloth and its rune painted together, so the
+        // rune moves with the cloth (the banner shader ripples every vertex by its own position, so a rune drawn on a
+        // separate square drifted against the cloth in test-c).
+        // Plain: 24 cells (rune i, colour i % 8): the weave of the game's blue-and-yellow banner (its blue cloth only;
+        // every banner's knotwork runs down its middle, so no banner area is plain) as light and dark, dyed in each colour.
+        // Cloth: 264 cells (banner i % 11, rune i % 24): the banner's picture from just under its top hem (the hanger and
+        // hem showed in the offline preview) down to about its middle, edge to middle to edge.
         private static void Flags()
         {
-            List<Material> cloth = new List<Material>();
-            Material light = null;
+            List<Material> banners = new List<Material>();
             foreach (int n in ClothOrder)
             {
                 GameObject banner = PrefabManager.Instance.GetPrefab("piece_banner" + n.ToString("00"));
                 Material m = banner ? banner.transform.Find("default")?.GetComponent<MeshRenderer>()?.sharedMaterial : null;
-                if (m) cloth.Add(m);
-                if (m && n == 11) light = m;
+                if (m) banners.Add(m);
             }
-            if (cloth.Count != ClothOrder.Length || light == null)
+            if (banners.Count != ClothOrder.Length)
             {
-                Debug.LogWarning(Plugin.Tag + " Banner cloth missing (" + cloth.Count + " of " + ClothOrder.Length + "); no bunting.");
+                Debug.LogWarning(Plugin.Tag + " Banner cloth missing (" + banners.Count + " of " + ClothOrder.Length + "); no bunting.");
                 return;
             }
-            Material runeDark = RuneMaterial(cloth[0], RuneDarkColor, "dark"), runeLight = RuneMaterial(cloth[0], RuneLightColor, "light");
-            if (!runeDark || !runeLight)
+            Texture2D[] runes = LoadRunes();
+            if (runes == null) return;
+            List<Picture> pictures = new List<Picture>();
+            foreach (Material m in banners)
             {
-                return;
+                Texture tex = m.GetTexture("_MainTex");
+                Picture pic = tex ? Read(tex) : null;
+                if (pic == null)
+                {
+                    Debug.LogWarning(Plugin.Tag + " Banner picture of " + m.name + " not read; no bunting.");
+                    return;
+                }
+                pictures.Add(pic);
             }
-            List<Material> plain = new List<Material>();
-            for (int i = 0; i < Palette.Length; i++)
+            // banner 02 (blue with yellow knotwork) is third in ClothOrder.
+            Picture weave = Weave(pictures[2], out Color clothColour, out int kept);
+            Texture2D plain = Sheet("potatowright_flags_plain", PlainColumns, PlainRows, PlainCell, Futhark.Length, (cell, s, t) =>
             {
-                Material m = new Material(light) { name = "potatowright_flag_" + i };
-                Color c = Palette[i];
-                m.SetColor("_Color", new Color(c.r / PlainCloth, c.g / PlainCloth, c.b / PlainCloth, 1f));
-                plain.Add(m);
-            }
-            plain.Add(runeDark);
-            plain.Add(runeLight);
-            cloth.Add(runeDark);
-            cloth.Add(runeLight);
-            s_plain = plain.ToArray();
-            s_cloth = cloth.ToArray();
-            Plugin.Debug("Bunting: plain cloth from " + light.name + " (" + light.shader.name + ", bump " + (light.HasProperty("_BumpMap") && light.GetTexture("_BumpMap") ? light.GetTexture("_BumpMap").name : "none") + "), " + (cloth.Count - 2) + " banner cloths, runes " + Futhark.Length);
+                Color c = Palette[cell % Palette.Length];
+                float w = weave.Sample(s, 0.2f + t * 0.5f).r;
+                Color cloth = new Color(c.r * w, c.g * w, c.b * w, 1f);
+                return Rune(cloth, runes[cell % Futhark.Length], Luminance(Palette[cell % Palette.Length]) < 0.45f, s, t);
+            });
+            Texture2D cloth = Sheet("potatowright_flags_cloth", ClothColumns, ClothRows, ClothCell, ClothCells, (cell, s, t) =>
+            {
+                int b = cell % ClothOrder.Length;
+                float u = 0.057f + (1f - Mathf.Abs(2f * s - 1f)) * (0.246f - 0.057f);
+                float v = 0.46f + t * (0.92f - 0.46f);
+                Color col = pictures[b].Sample(u, v);
+                col.a = 1f;
+                return Rune(col, runes[cell % Futhark.Length], ClothDark[b], s, t);
+            });
+            foreach (Texture2D r in runes) Object.Destroy(r);
+            s_plain = new[] { FlagMaterial(banners[0], plain) };
+            s_cloth = new[] { FlagMaterial(banners[0], cloth) };
+            Plugin.Debug("Bunting: plain sheet " + plain.width + "x" + plain.height + " (weave from " + banners[2].name + ", cloth colour #" + ColorUtility.ToHtmlStringRGB(clothColour) + ", " + kept + " cloth pixels of " + weave.Count + "), cloth sheet " + cloth.width + "x" + cloth.height + " (" + banners.Count + " banners), runes " + runes.Length + ", shader " + banners[0].shader.name);
         }
 
-        // The 24 runes in a 6 x 4 sheet in one colour, cut out by the drawings' alpha, on the banners' cloth shader.
-        private static Material RuneMaterial(Material template, Color color, string tag)
+        private const int PlainColumns = 6, PlainRows = 4, PlainCell = 128;
+        private const int ClothColumns = 24, ClothRows = 11, ClothCell = 64, ClothCells = 264;
+
+        private static Material FlagMaterial(Material template, Texture2D sheet)
         {
-            Texture2D sheet = new Texture2D(RuneColumns * RuneCell, RuneRows * RuneCell, TextureFormat.RGBA32, true) { name = "potatowright_runes_" + tag, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            Color[] pixels = new Color[sheet.width * sheet.height];
-            Color clear = new Color(color.r, color.g, color.b, 0f);
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = clear;
-            Assembly asm = typeof(HangPieces).Assembly;
-            int loaded = 0;
-            for (int r = 0; r < Futhark.Length; r++)
-            {
-                Texture2D rune = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                using (Stream s = asm.GetManifestResourceStream("PotatoWright.runes.elder_" + Futhark[r] + ".png"))
-                {
-                    if (s == null) continue;
-                    byte[] bytes = new byte[s.Length];
-                    s.Read(bytes, 0, bytes.Length);
-                    if (!ImageConversion.LoadImage(rune, bytes)) continue;
-                }
-                int col = r % RuneColumns, row = r / RuneColumns;
-                int x0 = col * RuneCell, y0 = (RuneRows - 1 - row) * RuneCell;
-                for (int y = 0; y < RuneCell; y++)
-                {
-                    for (int x = 0; x < RuneCell; x++)
-                    {
-                        float a = rune.GetPixelBilinear((x + 0.5f) / RuneCell, (y + 0.5f) / RuneCell).a;
-                        pixels[(y0 + y) * sheet.width + x0 + x] = new Color(color.r, color.g, color.b, a);
-                    }
-                }
-                Object.Destroy(rune);
-                loaded++;
-            }
-            if (loaded != Futhark.Length)
-            {
-                Debug.LogWarning(Plugin.Tag + " Rune drawings missing (" + loaded + " of " + Futhark.Length + "); bunting without runes.");
-                return null;
-            }
-            sheet.SetPixels(pixels);
-            sheet.Apply(true);
-            Material m = new Material(template) { name = "potatowright_flag_runes_" + tag };
+            Material m = new Material(template) { name = sheet.name };
             m.SetTexture("_MainTex", sheet);
             if (m.HasProperty("_BumpMap")) m.SetTexture("_BumpMap", null);
             m.SetColor("_Color", Color.white);
             return m;
         }
 
+        // A picture's pixels, read through a temporary render target (the game's textures can't be read directly).
+        private sealed class Picture
+        {
+            internal int Width, Height;
+            internal Color[] Pixels;
+            internal int Count => Pixels.Length;
+
+            internal Color Sample(float u, float v)
+            {
+                float x = Mathf.Repeat(u, 1f) * Width - 0.5f, y = Mathf.Repeat(v, 1f) * Height - 0.5f;
+                int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+                float fx = x - x0, fy = y - y0;
+                Color a = At(x0, y0), b = At(x0 + 1, y0), c = At(x0, y0 + 1), d = At(x0 + 1, y0 + 1);
+                return Color.Lerp(Color.Lerp(a, b, fx), Color.Lerp(c, d, fx), fy);
+            }
+
+            private Color At(int x, int y)
+            {
+                x = Mathf.Clamp(x, 0, Width - 1);
+                y = Mathf.Clamp(y, 0, Height - 1);
+                return Pixels[y * Width + x];
+            }
+        }
+
+        private static Picture Read(Texture source)
+        {
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            Texture2D read = null;
+            try
+            {
+                Graphics.Blit(source, rt);
+                RenderTexture.active = rt;
+                read = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, false);
+                read.ReadPixels(new Rect(0f, 0f, source.width, source.height), 0, 0, false);
+                read.Apply(false, false);
+                return new Picture { Width = source.width, Height = source.height, Pixels = read.GetPixels() };
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(Plugin.Tag + " Couldn't read " + source.name + ": " + e.Message);
+                return null;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(rt);
+                if (read) Object.Destroy(read);
+            }
+        }
+
+        // The banner's cloth as light and dark around 1: its own cloth pixels (close to the main colour) by brightness, the
+        // knotwork's pixels set to the average.
+        private static Picture Weave(Picture banner, out Color main, out int kept)
+        {
+            const float u0 = 0.06f, u1 = 0.245f, v0 = 0.05f, v1 = 0.95f;
+            int x0 = Mathf.RoundToInt(u0 * banner.Width), x1 = Mathf.RoundToInt(u1 * banner.Width);
+            int y0 = Mathf.RoundToInt(v0 * banner.Height), y1 = Mathf.RoundToInt(v1 * banner.Height);
+            int w = x1 - x0, h = y1 - y0;
+            // The main colour: the most common colour, in steps of an eighth.
+            Dictionary<int, int> counts = new Dictionary<int, int>();
+            for (int y = y0; y < y1; y++)
+            {
+                for (int x = x0; x < x1; x++)
+                {
+                    Color c = banner.Pixels[y * banner.Width + x];
+                    int key = Mathf.RoundToInt(c.r * 7f) * 64 + Mathf.RoundToInt(c.g * 7f) * 8 + Mathf.RoundToInt(c.b * 7f);
+                    counts[key] = counts.TryGetValue(key, out int k) ? k + 1 : 1;
+                }
+            }
+            int top = counts.OrderByDescending(p => p.Value).First().Key;
+            main = new Color((top / 64) / 7f, (top / 8 % 8) / 7f, (top % 8) / 7f);
+            float[] lum = new float[w * h];
+            bool[] cloth = new bool[w * h];
+            float sum = 0f;
+            kept = 0;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    Color c = banner.Pixels[(y0 + y) * banner.Width + x0 + x];
+                    float d = Mathf.Abs(c.r - main.r) + Mathf.Abs(c.g - main.g) + Mathf.Abs(c.b - main.b);
+                    int i = y * w + x;
+                    lum[i] = 0.299f * c.r + 0.587f * c.g + 0.114f * c.b;
+                    cloth[i] = c.a > 0.5f && d < 0.45f;
+                    if (cloth[i])
+                    {
+                        sum += lum[i];
+                        kept++;
+                    }
+                }
+            }
+            float mean = kept > 0 ? sum / kept : 1f;
+            Color[] pixels = new Color[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    // A knotwork pixel takes the nearest cloth pixel's shade in its row (a flat average left a ghost of
+                    // the knotwork in the offline preview).
+                    int from = y * w + x;
+                    for (int dx = 1; !cloth[from] && dx < w; dx++)
+                    {
+                        if (x - dx >= 0 && cloth[y * w + x - dx]) from = y * w + x - dx;
+                        else if (x + dx < w && cloth[y * w + x + dx]) from = y * w + x + dx;
+                    }
+                    float f = cloth[from] && mean > 0f ? Mathf.Clamp(lum[from] / mean, 0.7f, 1.3f) : 1f;
+                    pixels[y * w + x] = new Color(f, f, f, 1f);
+                }
+            }
+            return new Picture { Width = w, Height = h, Pixels = pixels };
+        }
+
+        // One sheet of flag pictures: cell by cell, each pixel from paint(cell, s, t), s across the flag (0 to 1), t up
+        // the flag (0 at the tip, 1 at the top edge). Compressed once made.
+        private static Texture2D Sheet(string name, int columns, int rows, int cellSize, int cells, System.Func<int, float, float, Color> paint)
+        {
+            Texture2D sheet = new Texture2D(columns * cellSize, rows * cellSize, TextureFormat.RGBA32, true, false) { name = name, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            Color[] pixels = new Color[sheet.width * sheet.height];
+            for (int cell = 0; cell < cells; cell++)
+            {
+                int x0 = (cell % columns) * cellSize, y0 = (rows - 1 - cell / columns) * cellSize;
+                for (int y = 0; y < cellSize; y++)
+                {
+                    for (int x = 0; x < cellSize; x++)
+                    {
+                        pixels[(y0 + y) * sheet.width + x0 + x] = paint(cell, (x + 0.5f) / cellSize, (y + 0.5f) / cellSize);
+                    }
+                }
+            }
+            sheet.SetPixels(pixels);
+            sheet.Apply(true);
+            sheet.Compress(true);
+            sheet.Apply(true, true);
+            return sheet;
+        }
+
+        // The rune painted on the cloth: a 0.11 m square (RuneHalf) centred RuneDepth below the top edge.
+        private static Color Rune(Color cloth, Texture2D rune, bool darkCloth, float s, float t)
+        {
+            const float halfS = RuneHalf / (2f * FlagHalf), halfT = RuneHalf / FlagLength, centreT = 1f - RuneDepth / FlagLength;
+            float rs = (s - (0.5f - halfS)) / (2f * halfS), rt = (t - (centreT - halfT)) / (2f * halfT);
+            if (rs < 0f || rs > 1f || rt < 0f || rt > 1f) return cloth;
+            float a = rune.GetPixelBilinear(rs, rt).a;
+            return Color.Lerp(cloth, darkCloth ? RuneLightColor : RuneDarkColor, a);
+        }
+
+        private static Texture2D[] LoadRunes()
+        {
+            Assembly asm = typeof(HangPieces).Assembly;
+            Texture2D[] runes = new Texture2D[Futhark.Length];
+            for (int r = 0; r < Futhark.Length; r++)
+            {
+                using (Stream s = asm.GetManifestResourceStream("PotatoWright.runes.elder_" + Futhark[r] + ".png"))
+                {
+                    if (s == null) break;
+                    byte[] bytes = new byte[s.Length];
+                    s.Read(bytes, 0, bytes.Length);
+                    Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    if (ImageConversion.LoadImage(tex, bytes)) runes[r] = tex;
+                }
+            }
+            if (runes.Any(x => x == null))
+            {
+                Debug.LogWarning(Plugin.Tag + " Rune drawings missing; no bunting.");
+                return null;
+            }
+            return runes;
+        }
+
         internal const float FlagSpacing = 0.34f, FlagHalf = 0.12f, FlagLength = 0.3f, RuneHalf = 0.055f, RuneDepth = 0.095f;
 
-        // Triangle flags along the curve: the top edge on the rope, the tip hanging straight down. One submesh per cloth,
-        // then the dark runes and the light runes: a small square on each face of the flag (just off the cloth), with the
-        // flag's rune, in turn through the Elder Futhark.
-        // Plain: the light grey banner cloth's inside (u 0.12 at the edges to 0.24 in the middle, v 0.9 at the top to 0.6
-        // at the tip: the banner pictures hold half a banner, mirrored at the middle). Cloth: the top half of each banner's
-        // picture, edge to middle to edge (u 0.057 to 0.246, v 0.968 to 0.502).
+        // Triangle flags along the curve: the top edge on the rope, the tip hanging straight down, each flag's corners on
+        // its own cell of the style's sheet (plain: flag f in cell f % 24; cloth: f % 264), so the flags run through the
+        // Elder Futhark in turn and through the colours or banners.
         internal static Mesh BuntingMesh(List<Vector3> curve, int style, out int flags)
         {
             List<Vector3> fine = Swag.Resample(curve, 0.01f);
@@ -236,63 +387,34 @@ namespace PotatoWright
             float step = total / (fine.Count - 1);
             flags = Mathf.Max(1, Mathf.FloorToInt((total - 2f * FlagHalf) / FlagSpacing) + 1);
             float start = (total - (flags - 1) * FlagSpacing) / 2f;
-            int cloths = style == 0 ? Palette.Length : ClothOrder.Length;
-            int subs = cloths + 2;
+            int columns = style == 0 ? PlainColumns : ClothColumns, rows = style == 0 ? PlainRows : ClothRows;
+            int cellSize = style == 0 ? PlainCell : ClothCell, cells = style == 0 ? Futhark.Length : ClothCells;
+            float cu = 1f / columns, cv = 1f / rows, inset = 0.5f / (columns * cellSize);
             List<Vector3> v = new List<Vector3>();
             List<Vector3> n = new List<Vector3>();
             List<Vector2> uv = new List<Vector2>();
-            List<int>[] tris = new List<int>[subs];
-            for (int k = 0; k < subs; k++) tris[k] = new List<int>();
+            List<int> tris = new List<int>();
             for (int f = 0; f < flags; f++)
             {
                 float s = start + f * FlagSpacing;
                 Vector3 a = At(fine, step, s - FlagHalf), m = At(fine, step, s), b = At(fine, step, s + FlagHalf);
                 Vector3 tip = m + Vector3.down * FlagLength;
                 Vector3 normal = Vector3.Cross(b - a, Vector3.down).normalized;
-                int c = f % cloths;
+                int cell = f % cells;
+                float u0 = (cell % columns) * cu + inset, u1 = (cell % columns + 1) * cu - inset;
+                float v1 = 1f - (cell / columns) * cv - inset, v0 = 1f - (cell / columns + 1) * cv + inset;
                 int o = v.Count;
                 v.Add(a); v.Add(m); v.Add(b); v.Add(tip);
                 for (int k = 0; k < 4; k++) n.Add(normal);
-                if (style == 0)
-                {
-                    uv.Add(new Vector2(0.12f, 0.9f)); uv.Add(new Vector2(0.24f, 0.9f)); uv.Add(new Vector2(0.12f, 0.9f)); uv.Add(new Vector2(0.24f, 0.6f));
-                }
-                else
-                {
-                    uv.Add(new Vector2(0.057f, 0.968f)); uv.Add(new Vector2(0.246f, 0.968f)); uv.Add(new Vector2(0.057f, 0.968f)); uv.Add(new Vector2(0.246f, 0.502f));
-                }
-                tris[c].Add(o); tris[c].Add(o + 1); tris[c].Add(o + 3);
-                tris[c].Add(o + 1); tris[c].Add(o + 2); tris[c].Add(o + 3);
-                // The rune, on both faces.
-                bool dark = style == 0 ? Luminance(Palette[c]) < 0.45f : ClothDark[c];
-                List<int> rt = tris[cloths + (dark ? 1 : 0)];
-                int r = f % Futhark.Length;
-                float u0 = (float)(r % RuneColumns) / RuneColumns, u1 = u0 + 1f / RuneColumns;
-                float v1 = 1f - (float)(r / RuneColumns) / RuneRows, v0 = v1 - 1f / RuneRows;
-                Vector3 right = (b - a).normalized;
-                Vector3 centre = m + Vector3.down * RuneDepth;
-                for (int side = 0; side < 2; side++)
-                {
-                    Vector3 face = side == 0 ? normal : -normal;
-                    Vector3 across = side == 0 ? right : -right;
-                    Vector3 at = centre + face * 0.004f;
-                    int q = v.Count;
-                    v.Add(at - across * RuneHalf + Vector3.up * RuneHalf); uv.Add(new Vector2(u0, v1));
-                    v.Add(at + across * RuneHalf + Vector3.up * RuneHalf); uv.Add(new Vector2(u1, v1));
-                    v.Add(at + across * RuneHalf - Vector3.up * RuneHalf); uv.Add(new Vector2(u1, v0));
-                    v.Add(at - across * RuneHalf - Vector3.up * RuneHalf); uv.Add(new Vector2(u0, v0));
-                    for (int k = 0; k < 4; k++) n.Add(face);
-                    rt.Add(q); rt.Add(q + 1); rt.Add(q + 2);
-                    rt.Add(q); rt.Add(q + 2); rt.Add(q + 3);
-                }
+                uv.Add(new Vector2(u0, v1)); uv.Add(new Vector2((u0 + u1) / 2f, v1)); uv.Add(new Vector2(u1, v1)); uv.Add(new Vector2((u0 + u1) / 2f, v0));
+                tris.Add(o); tris.Add(o + 1); tris.Add(o + 3);
+                tris.Add(o + 1); tris.Add(o + 2); tris.Add(o + 3);
             }
             Mesh mesh = new Mesh { name = "potatowright_bunting" };
-            if (v.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             mesh.SetVertices(v);
             mesh.SetNormals(n);
             mesh.SetUVs(0, uv);
-            mesh.subMeshCount = subs;
-            for (int k = 0; k < subs; k++) mesh.SetTriangles(tris[k], k);
+            mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds();
             mesh.RecalculateTangents();
             return mesh;
