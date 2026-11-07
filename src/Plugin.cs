@@ -18,10 +18,10 @@ namespace PotatoWright
     [NetworkCompatibility(CompatibilityLevel.EveryoneMustHaveMod, VersionStrictness.Minor)]
     public class Plugin : BaseUnityPlugin
     {
-        public const string Id = "potato.wright", Version = "1.0.0";
+        public const string Id = "potato.wright", Version = "1.1.0";
 
         // Test builds log what they do (Debug); releases don't.
-        internal const bool TestBuild = false;
+        internal const bool TestBuild = true;
 
         internal const string Tag = "[PotatoWright]";
 
@@ -62,6 +62,22 @@ namespace PotatoWright
             {
                 Log.LogError("Ropes and chains not added: " + e);
             }
+            try
+            {
+                ScaffoldPiece.Create();
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError("Scaffold not added: " + e);
+            }
+            try
+            {
+                HangPieces.Create();
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError("Hangings not added: " + e);
+            }
         }
 
         private static void AddTranslations()
@@ -96,6 +112,21 @@ namespace PotatoWright
                 { "potatowright_swag_toolong", "Too long: up to 16 m" },
                 { "potatowright_swag_tooshort", "Too short" },
                 { "potatowright_swag_sag", "Sag" },
+                { "piece_potatowright_scaffold", "Scaffold" },
+                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and line up at their corners. It never falls, and nothing else rests on it." },
+                { "piece_potatowright_hang_lantern", "Hanging lantern" },
+                { "piece_potatowright_hang_lantern_description", "Aim at a rope or chain and click: it hangs there and lights up like the game's lanterns. It falls when its rope or chain goes." },
+                { "piece_potatowright_hang_fish", "Drying fish" },
+                { "piece_potatowright_hang_fish_description", "Fish hung by their tails. Aim at a rope or chain and click: they hang there. They fall when their rope or chain goes." },
+                { "piece_potatowright_hang_herbs", "Drying herbs" },
+                { "piece_potatowright_hang_herbs_description", "A bunch of thistles hung heads down. Aim at a rope or chain and click: it hangs there. It falls when its rope or chain goes." },
+                { "piece_potatowright_bunting", "Pennant bunting" },
+                { "piece_potatowright_bunting_description", "Flags along a whole rope or chain: aim at it and click. Mouse wheel: plain colors or banner cloth. It falls when its rope or chain goes." },
+                { "piece_potatowright_fey", "Fey lights on a rope" },
+                { "piece_potatowright_fey_description", "Fey lights drifting along a whole rope or chain: aim at it and click. They fall when their rope or chain goes." },
+                { "potatowright_hang_aim", "Aim at a rope or chain" },
+                { "potatowright_flags_plain", "Flags: plain colors" },
+                { "potatowright_flags_cloth", "Flags: banner cloth" },
             });
         }
     }

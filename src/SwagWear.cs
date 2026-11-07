@@ -12,6 +12,8 @@
 //    HitData) still count, the hammer still removes them, and a destroyed ship still destroys them (Build On Ship calls
 //    WearNTear.Destroy directly).
 // PotatoWright patches only the game here, not Build On Ship's own code, so an update of that mod can't break it.
+// The same holds for every piece carrying Steady: the swags, the scaffold (never falls) and the hangings (they fall
+// only with their rope, Hanging.CheckHold).
 using HarmonyLib;
 
 namespace PotatoWright
@@ -22,7 +24,7 @@ namespace PotatoWright
         [HarmonyPriority(Priority.First)]
         private static bool Prefix(WearNTear __instance, HitData hitData, ref bool __result)
         {
-            if (hitData != null || __instance == null || __instance.GetComponent<Swag>() == null)
+            if (hitData != null || __instance == null || __instance.GetComponent<Steady>() == null)
             {
                 return true;
             }
@@ -37,10 +39,18 @@ namespace PotatoWright
         [HarmonyPriority(Priority.Last)]
         private static void Prefix(WearNTear __instance)
         {
-            if (__instance != null && __instance.m_noSupportWear && __instance.GetComponent<Swag>() != null)
+            if (__instance != null && __instance.m_noSupportWear && __instance.GetComponent<Steady>() != null)
             {
                 __instance.m_noSupportWear = false;
             }
         }
+    }
+}
+
+namespace PotatoWright
+{
+    // Marks the pieces that take no support or weather wear (SwagWear, SupportOff).
+    public sealed class Steady : UnityEngine.MonoBehaviour
+    {
     }
 }

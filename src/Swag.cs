@@ -196,6 +196,7 @@ namespace PotatoWright
             snap.transform.SetParent(prefab.transform, false);
             snap.tag = "snappoint";
             snap.SetActive(false);
+            prefab.AddComponent<Steady>();
             Swag swag = prefab.AddComponent<Swag>();
             swag.m_kind = kind;
             swag.m_links = links;
@@ -227,6 +228,11 @@ namespace PotatoWright
         private GameObject m_visual;
         private Vector3 m_end;
         private float m_sag = -1f;
+
+        // The placed swag's second end (its own space) and sag; Sag is below 0 until it has been drawn.
+        internal Vector3 End => m_end;
+        internal float Sag => m_sag;
+        internal bool Placed => m_nview != null && m_nview.IsValid() && m_sag >= 0f;
         private int m_misses;
         private float m_start;
         private Transform m_lastParent;
@@ -378,7 +384,7 @@ namespace PotatoWright
             return list;
         }
 
-        private static LineRenderer Line(GameObject parent, List<Vector3> points, Material material, float width)
+        internal static LineRenderer Line(GameObject parent, List<Vector3> points, Material material, float width)
         {
             GameObject go = new GameObject("line");
             go.transform.SetParent(parent.transform, false);
@@ -448,7 +454,7 @@ namespace PotatoWright
 
         // A round tube through the points, in the swag's local space (PotatoFarmer's Post.Tube). With strands, the surface
         // swells over each of the three strands and dips into the grooves between them, twisting along the rope.
-        internal static Mesh Tube(List<Vector3> points, int sides, bool strands)
+        internal static Mesh Tube(List<Vector3> points, int sides, bool strands, float radius = RopeRadius)
         {
             int rings = points.Count;
             Vector3[] vertices = new Vector3[rings * (sides + 1)];
@@ -477,7 +483,7 @@ namespace PotatoWright
                     {
                         swell = 0.92f;
                     }
-                    vertices[v] = points[i] + n * (RopeRadius * swell);
+                    vertices[v] = points[i] + n * (radius * swell);
                     normals[v] = n;
                     uvs[v] = new Vector2(k / (float)sides, along / Twist);
                 }
