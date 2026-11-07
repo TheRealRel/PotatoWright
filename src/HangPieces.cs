@@ -54,11 +54,45 @@ namespace PotatoWright
         };
         private static readonly Color RuneDarkColor = new Color(0.16f, 0.12f, 0.09f), RuneLightColor = new Color(0.93f, 0.88f, 0.78f);
 
-        // One material per style (the sheet of its flag pictures).
+        // One material per sheet of flag pictures (plain cloth, banner cloth).
         private static Material[] s_plain, s_cloth;
         internal static GameObject FeyTemplate;
 
-        internal static Material[] BuntingMaterials(int style) => style == 0 ? s_plain : s_cloth;
+        // The bunting's looks (ZDO PotatoWright_hangStyle; the user, test-e: the mouse wheel cycles "Plain + runes",
+        // "Plain, no runes", "Banner + runes", "Banner, no runes" and "One colour"): 0 many colours with runes, 1 banner
+        // cloth with runes, 2 many colours, 3 banner cloth, 4-11 one colour (Palette order) with runes, 12-19 one colour.
+        // Saved in worlds: never renumber.
+        internal const int Looks = 20;
+        internal static readonly int[] LookOrder = { 0, 2, 1, 3, 4, 12, 5, 13, 6, 14, 7, 15, 8, 16, 9, 17, 10, 18, 11, 19 };
+        private static readonly string[] ColourNames = { "red", "yellow", "blue", "white", "green", "orange", "purple", "black" };
+
+        private static void Look(int look, out bool cloth, out bool runes, out int colour)
+        {
+            if (look < 0 || look >= Looks) look = 0;
+            cloth = look == 1 || look == 3;
+            runes = look < 2 || (look >= 4 && look < 12);
+            colour = look >= 12 ? look - 12 : look >= 4 ? look - 4 : -1;
+        }
+
+        internal static string LookName(int look)
+        {
+            Look(look, out bool cloth, out bool runes, out int colour);
+            return (cloth ? "banner cloth" : colour >= 0 ? ColourNames[colour] : "many colours") + (runes ? ", runes" : "");
+        }
+
+        // "Flags: ..." for each look, shown when the mouse wheel changes it.
+        internal static Dictionary<string, string> LookTranslations()
+        {
+            Dictionary<string, string> d = new Dictionary<string, string>();
+            for (int i = 0; i < Looks; i++) d["potatowright_flags_" + i] = "Flags: " + LookName(i);
+            return d;
+        }
+
+        internal static Material[] BuntingMaterials(int look)
+        {
+            Look(look, out bool cloth, out _, out _);
+            return cloth ? s_cloth : s_plain;
+        }
 
         internal static void Create()
         {
@@ -73,10 +107,14 @@ namespace PotatoWright
                 }
             }
             AddSpot("PotatoWright_HangLantern", "piece_potatowright_hang_lantern", Lantern, "forge", new[] { new RequirementConfig("Bronze", 1, 0, true), new RequirementConfig("Resin", 2, 0, true) });
-            AddCopied("PotatoWright_HangLanternHooded", "piece_potatowright_hang_lantern_hooded", LanternHooded, "piece_hoodedlantern", null);
-            AddCopied("PotatoWright_HangLanternDeepNorth", "piece_potatowright_hang_lantern_deepnorth", LanternDeepNorth, null, "Lantern_DN");
-            AddCopied("PotatoWright_HangLanternSnow", "piece_potatowright_hang_lantern_snow", LanternSnow, "piece_snowlantern", null);
-            AddCopied("PotatoWright_HangLanternLava", "piece_potatowright_hang_lantern_lava", LanternLava, "piece_Lavalantern", null);
+            AddCopied("PotatoWright_HangLanternHooded", "piece_potatowright_hang_lantern_hooded", LanternHooded, "piece_hoodedlantern");
+            // The Salvaged Lantern (Lantern_DN) has no recipe (probe, test-e: only Recipe_Lantern among the lanterns); it is
+            // found in the Deep North. The user's choice (test-e): the lantern itself and a chain, at the forge, as the
+            // game's Dvergr wall lantern takes its lantern and a chain.
+            AddSpot("PotatoWright_HangLanternDeepNorth", "piece_potatowright_hang_lantern_deepnorth", LanternDeepNorth, "forge",
+                new[] { new RequirementConfig("Lantern_DN", 1, 0, true), new RequirementConfig("Chain", 1, 0, true) });
+            AddCopied("PotatoWright_HangLanternSnow", "piece_potatowright_hang_lantern_snow", LanternSnow, "piece_snowlantern");
+            AddCopied("PotatoWright_HangLanternLava", "piece_potatowright_hang_lantern_lava", LanternLava, "piece_Lavalantern");
             AddBrazier();
             AddSpot("PotatoWright_HangHerbs", "piece_potatowright_hang_herbs", Herbs, "piece_workbench", new[] { new RequirementConfig("Thistle", 1, 0, true), new RequirementConfig("Dandelion", 2, 0, true) });
             AddSpot("PotatoWright_HangBunting", "piece_potatowright_bunting", Bunting, "piece_workbench", new[] { new RequirementConfig("LeatherScraps", 2, 0, true), new RequirementConfig("Raspberry", 2, 0, true) });
@@ -89,44 +127,30 @@ namespace PotatoWright
 
         // ------------------------------------------------------------------ costs
 
-        // What the game asks for the same thing: a piece's own requirements and station, or an item's recipe.
-        private static RequirementConfig[] GameCost(string piece, string item, out string station)
+        // What the game asks for the same piece: its own requirements and station.
+        private static RequirementConfig[] GameCost(string piece, out string station)
         {
             station = null;
-            if (piece != null)
+            Piece p = PrefabManager.Instance.GetPrefab(piece)?.GetComponent<Piece>();
+            if (p == null || p.m_resources == null || p.m_resources.Length == 0)
             {
-                Piece p = PrefabManager.Instance.GetPrefab(piece)?.GetComponent<Piece>();
-                if (p != null && p.m_resources != null && p.m_resources.Length > 0)
-                {
-                    station = p.m_craftingStation ? p.m_craftingStation.name : null;
-                    return p.m_resources.Where(r => r.m_resItem != null).Select(r => new RequirementConfig(r.m_resItem.name, r.m_amount, 0, true)).ToArray();
-                }
+                return null;
             }
-            if (item != null)
-            {
-                foreach (Recipe r in Resources.FindObjectsOfTypeAll<Recipe>())
-                {
-                    if (r != null && r.m_item != null && r.m_item.name == item && r.m_resources != null && r.m_resources.Length > 0)
-                    {
-                        station = r.m_craftingStation ? r.m_craftingStation.name : null;
-                        return r.m_resources.Where(x => x.m_resItem != null).Select(x => new RequirementConfig(x.m_resItem.name, x.m_amount, 0, true)).ToArray();
-                    }
-                }
-            }
-            return null;
+            station = p.m_craftingStation ? p.m_craftingStation.name : null;
+            return p.m_resources.Where(r => r.m_resItem != null).Select(r => new RequirementConfig(r.m_resItem.name, r.m_amount, 0, true)).ToArray();
         }
 
         private static string CostText(RequirementConfig[] cost) => string.Join(", ", cost.Select(r => r.Item + " x" + r.Amount));
 
-        // A lantern copied from the game: the game's cost for that lantern (its piece, or its item's recipe).
-        private static void AddCopied(string name, string token, int kind, string piece, string item)
+        // A lantern copied from the game: the game's cost for that lantern piece.
+        private static void AddCopied(string name, string token, int kind, string piece)
         {
-            RequirementConfig[] cost = GameCost(piece, item, out string station);
+            RequirementConfig[] cost = GameCost(piece, out string station);
             if (cost == null || cost.Length == 0)
             {
                 cost = new[] { new RequirementConfig("Bronze", 1, 0, true), new RequirementConfig("Resin", 2, 0, true) };
                 station = "forge";
-                Debug.LogWarning(Plugin.Tag + " No game cost found for " + (piece ?? item) + "; " + name + " costs " + CostText(cost) + ".");
+                Debug.LogWarning(Plugin.Tag + " No game cost found for " + piece + "; " + name + " costs " + CostText(cost) + ".");
             }
             AddSpot(name, token, kind, string.IsNullOrEmpty(station) ? "forge" : station, cost);
         }
@@ -136,10 +160,11 @@ namespace PotatoWright
         // The flags' pictures, made once at start: one cell per flag look, the cloth and its rune painted together, so the
         // rune moves with the cloth (the banner shader ripples every vertex by its own position, so a rune drawn on a
         // separate square drifted against the cloth in test-c).
-        // Plain: 24 cells (rune i, colour i % 8): the weave of the game's blue-and-yellow banner (its blue cloth only;
-        // every banner's knotwork runs down its middle, so no banner area is plain) as light and dark, dyed in each colour.
-        // Cloth: 264 cells (banner i % 11, rune i % 24): the banner's picture from just under its top hem (the hanger and
-        // hem showed in the offline preview) down to about its middle, edge to middle to edge.
+        // Each sheet is a row per cloth and a column per rune (the 24 of the Elder Futhark, then one with no rune), 64 px a
+        // cell. Plain: 8 rows, one per colour: the weave of the game's blue-and-yellow banner (its blue cloth only; every
+        // banner's knotwork runs down its middle, so no banner area is plain) as light and dark, dyed in that colour.
+        // Cloth: 11 rows, one per banner: the banner's picture from just under its top hem (the hanger and hem showed in
+        // the offline preview) down to about its middle, edge to middle to edge.
         private static void Flags()
         {
             List<Material> banners = new List<Material>();
@@ -170,21 +195,22 @@ namespace PotatoWright
             }
             // banner 02 (blue with yellow knotwork) is third in ClothOrder.
             Picture weave = Weave(pictures[2], out Color clothColour, out int kept);
-            Texture2D plain = Sheet("potatowright_flags_plain", PlainColumns, PlainRows, PlainCell, Futhark.Length, (cell, s, t) =>
+            Texture2D plain = Sheet("potatowright_flags_plain", SheetColumns, Palette.Length, FlagCell, SheetColumns * Palette.Length, (cell, s, t) =>
             {
-                Color c = Palette[cell % Palette.Length];
+                int row = cell / SheetColumns, rune = cell % SheetColumns;
+                Color c = Palette[row];
                 float w = weave.Sample(s, 0.2f + t * 0.5f).r;
                 Color cloth = new Color(c.r * w, c.g * w, c.b * w, 1f);
-                return Rune(cloth, runes[cell % Futhark.Length], Luminance(Palette[cell % Palette.Length]) < 0.45f, s, t);
+                return rune < Futhark.Length ? Rune(cloth, runes[rune], Luminance(Palette[row]) < 0.45f, s, t) : cloth;
             });
-            Texture2D cloth = Sheet("potatowright_flags_cloth", ClothColumns, ClothRows, ClothCell, ClothCells, (cell, s, t) =>
+            Texture2D cloth = Sheet("potatowright_flags_cloth", SheetColumns, ClothOrder.Length, FlagCell, SheetColumns * ClothOrder.Length, (cell, s, t) =>
             {
-                int b = cell % ClothOrder.Length;
+                int b = cell / SheetColumns, rune = cell % SheetColumns;
                 float u = 0.057f + (1f - Mathf.Abs(2f * s - 1f)) * (0.246f - 0.057f);
                 float v = 0.46f + t * (0.92f - 0.46f);
                 Color col = pictures[b].Sample(u, v);
                 col.a = 1f;
-                return Rune(col, runes[cell % Futhark.Length], ClothDark[b], s, t);
+                return rune < Futhark.Length ? Rune(col, runes[rune], ClothDark[b], s, t) : col;
             });
             foreach (Texture2D r in runes) Object.Destroy(r);
             s_plain = new[] { FlagMaterial(banners[0], plain) };
@@ -192,8 +218,8 @@ namespace PotatoWright
             Plugin.Debug("Bunting: plain sheet " + plain.width + "x" + plain.height + " (weave from " + banners[2].name + ", cloth colour #" + ColorUtility.ToHtmlStringRGB(clothColour) + ", " + kept + " cloth pixels of " + weave.Count + "), cloth sheet " + cloth.width + "x" + cloth.height + " (" + banners.Count + " banners), runes " + runes.Length + ", shader " + banners[0].shader.name);
         }
 
-        private const int PlainColumns = 6, PlainRows = 4, PlainCell = 128;
-        private const int ClothColumns = 24, ClothRows = 11, ClothCell = 64, ClothCells = 264;
+        // 24 runes and one without; 64 px a cell.
+        private const int SheetColumns = 25, FlagCell = 64;
 
         private static Material FlagMaterial(Material template, Texture2D sheet)
         {
@@ -377,9 +403,10 @@ namespace PotatoWright
         internal const float FlagSpacing = 0.34f, FlagHalf = 0.12f, FlagLength = 0.3f, RuneHalf = 0.055f, RuneDepth = 0.095f;
 
         // Triangle flags along the curve: the top edge on the rope, the tip hanging straight down, each flag's corners on
-        // its own cell of the style's sheet (plain: flag f in cell f % 24; cloth: f % 264), so the flags run through the
-        // Elder Futhark in turn and through the colours or banners.
-        internal static Mesh BuntingMesh(List<Vector3> curve, int style, out int flags)
+        // its own cell of the look's sheet: flag f has rune f % 24 (or the column with none) and colour f % 8, banner
+        // f % 11, or the look's one colour, so the flags run through the Elder Futhark in turn and through the colours or
+        // banners.
+        internal static Mesh BuntingMesh(List<Vector3> curve, int look, out int flags)
         {
             List<Vector3> fine = Swag.Resample(curve, 0.01f);
             float total = 0f;
@@ -387,9 +414,9 @@ namespace PotatoWright
             float step = total / (fine.Count - 1);
             flags = Mathf.Max(1, Mathf.FloorToInt((total - 2f * FlagHalf) / FlagSpacing) + 1);
             float start = (total - (flags - 1) * FlagSpacing) / 2f;
-            int columns = style == 0 ? PlainColumns : ClothColumns, rows = style == 0 ? PlainRows : ClothRows;
-            int cellSize = style == 0 ? PlainCell : ClothCell, cells = style == 0 ? Futhark.Length : ClothCells;
-            float cu = 1f / columns, cv = 1f / rows, inset = 0.5f / (columns * cellSize);
+            Look(look, out bool clothLook, out bool runeLook, out int colour);
+            int columns = SheetColumns, rows = clothLook ? ClothOrder.Length : Palette.Length;
+            float cu = 1f / columns, cv = 1f / rows, inset = 0.5f / (columns * FlagCell);
             List<Vector3> v = new List<Vector3>();
             List<Vector3> n = new List<Vector3>();
             List<Vector2> uv = new List<Vector2>();
@@ -400,7 +427,8 @@ namespace PotatoWright
                 Vector3 a = At(fine, step, s - FlagHalf), m = At(fine, step, s), b = At(fine, step, s + FlagHalf);
                 Vector3 tip = m + Vector3.down * FlagLength;
                 Vector3 normal = Vector3.Cross(b - a, Vector3.down).normalized;
-                int cell = f % cells;
+                int row = clothLook ? f % ClothOrder.Length : colour >= 0 ? colour : f % Palette.Length;
+                int cell = row * columns + (runeLook ? f % Futhark.Length : Futhark.Length);
                 float u0 = (cell % columns) * cu + inset, u1 = (cell % columns + 1) * cu - inset;
                 float v1 = 1f - (cell / columns) * cv - inset, v0 = 1f - (cell / columns + 1) * cv + inset;
                 int o = v.Count;
@@ -807,7 +835,7 @@ namespace PotatoWright
         private static void AddBrazier()
         {
             const string name = "PotatoWright_HangBrazier";
-            RequirementConfig[] cost = GameCost("piece_brazierceiling01", null, out string station);
+            RequirementConfig[] cost = GameCost("piece_brazierceiling01", out string station);
             if (cost == null || cost.Length == 0)
             {
                 Debug.LogWarning(Plugin.Tag + " piece_brazierceiling01 not found; no hanging brazier.");
@@ -845,38 +873,6 @@ namespace PotatoWright
             if (icon) piece.m_icon = icon;
             PieceManager.Instance.AddPiece(custom);
             Plugin.Debug("Hanging piece " + name + " (piece_brazierceiling01 copy, chains' top " + top.ToString("0.000") + " m above the bowl, " + CostText(cost) + " at " + station + ", components " + string.Join(", ", prefab.GetComponents<Component>().Select(x => x.GetType().Name)) + ", icon " + (bool)icon + ")");
-        }
-    }
-}
-
-namespace PotatoWright
-{
-    // TEST ONLY: the game's recipes for lanterns, read once the item database is up (test-c found no recipe for
-    // Lantern_DN at start, so the Deep North hanging lantern fell back to Bronze 1 + Resin 2). Logs only.
-    [HarmonyLib.HarmonyPatch(typeof(ObjectDB), "Awake")]
-    internal static class LanternRecipeProbe
-    {
-        private static bool s_done;
-
-        private static void Postfix(ObjectDB __instance)
-        {
-            if (!Plugin.TestBuild || s_done || __instance == null || __instance.m_recipes == null || __instance.m_recipes.Count == 0)
-            {
-                return;
-            }
-            s_done = true;
-            UnityEngine.GameObject item = __instance.GetItemPrefab("Lantern_DN");
-            ItemDrop drop = item ? item.GetComponent<ItemDrop>() : null;
-            Plugin.Debug("Probe: Lantern_DN item " + (bool)item + (drop ? ", name " + drop.m_itemData.m_shared.m_name + ", type " + drop.m_itemData.m_shared.m_itemType : "") + "; " + __instance.m_recipes.Count + " recipes");
-            foreach (Recipe r in __instance.m_recipes)
-            {
-                if (r == null || r.m_item == null || r.m_item.name.IndexOf("Lantern", System.StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    continue;
-                }
-                string res = r.m_resources == null ? "none" : string.Join(", ", System.Linq.Enumerable.Select(r.m_resources, x => (x.m_resItem ? x.m_resItem.name : "?") + " x" + x.m_amount));
-                Plugin.Debug("Probe: recipe " + r.name + " makes " + r.m_item.name + ", enabled " + r.m_enabled + ", station " + (r.m_craftingStation ? r.m_craftingStation.name : "none") + ", " + res);
-            }
         }
     }
 }

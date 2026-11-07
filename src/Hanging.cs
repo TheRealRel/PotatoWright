@@ -109,7 +109,7 @@ namespace PotatoWright
                         MeshRenderer r = (MeshRenderer)HangPieces.MeshPart(m_visual, "flags", mesh, null, Vector3.zero, Quaternion.identity, Vector3.one);
                         r.sharedMaterials = mats;
                         shown = r;
-                        if (placed) Plugin.Debug("Bunting " + name + ": " + flags + " flags, style " + (style == 0 ? "plain" : "banner cloth"));
+                        if (placed) Plugin.Debug("Bunting " + name + ": " + flags + " flags, look " + style + " (" + HangPieces.LookName(style) + ")");
                     }
                 }
                 else if (HangPieces.FeyTemplate)
@@ -249,7 +249,7 @@ namespace PotatoWright
         private static Swag s_target;
         private static Vector3 s_end;
         private static float s_sag;
-        private static int s_style;
+        private static int s_style, s_step;
         private static float s_wheel;
         private static Player.PlacementStatus s_lastStatus = (Player.PlacementStatus)(-1);
 
@@ -325,7 +325,7 @@ namespace PotatoWright
             if (hanging.IsString) hanging.SetInvalid(__instance.m_placementStatus != Player.PlacementStatus.Valid);
         }
 
-        // Bunting: the mouse wheel switches plain colours and banner cloth.
+        // Bunting: the mouse wheel steps through the looks (HangPieces.LookOrder), up forward and down back.
         [HarmonyPatch(typeof(Player), "UpdatePlacement")]
         [HarmonyPostfix]
         private static void UpdatePlacement_Postfix(Player __instance, bool takeInput)
@@ -335,10 +335,13 @@ namespace PotatoWright
             if (hanging == null || hanging.m_kind != HangPieces.Bunting || Hud.IsPieceSelectionVisible()) return;
             s_wheel += ZInput.GetMouseScrollWheel();
             if (Mathf.Abs(s_wheel) < __instance.m_scrollAmountThreshold) return;
+            int dir = s_wheel > 0f ? 1 : -1;
             s_wheel = 0f;
-            s_style = 1 - s_style;
-            __instance.Message(MessageHud.MessageType.Center, s_style == 0 ? "$potatowright_flags_plain" : "$potatowright_flags_cloth");
-            Plugin.Debug("Bunting style " + (s_style == 0 ? "plain" : "banner cloth"));
+            int n = HangPieces.LookOrder.Length;
+            s_step = ((s_step + dir) % n + n) % n;
+            s_style = HangPieces.LookOrder[s_step];
+            __instance.Message(MessageHud.MessageType.Center, "$potatowright_flags_" + s_style);
+            Plugin.Debug("Bunting look " + s_style + " (" + HangPieces.LookName(s_style) + ")");
         }
 
         [HarmonyPatch(typeof(Player), "TryPlacePiece")]

@@ -113,7 +113,7 @@ namespace PotatoWright
                 { "potatowright_swag_tooshort", "Too short" },
                 { "potatowright_swag_sag", "Sag" },
                 { "piece_potatowright_scaffold", "Scaffold" },
-                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and line up at their corners. A frame falls when what it stands on is removed, and nothing else rests on it." },
+                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and line up at their corners, open into each other where they meet, and the top one has a guard rail. A frame falls when what it stands on is removed, and nothing else rests on it." },
                 { "piece_potatowright_hang_lantern", "Hanging lantern: Dvergr" },
                 { "piece_potatowright_hang_lantern_description", "Aim at a rope or chain and click: it hangs there and lights up like the game's lanterns. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_lantern_hooded", "Hanging lantern: hooded" },
@@ -131,13 +131,12 @@ namespace PotatoWright
                 { "piece_potatowright_hang_herbs", "Drying herbs" },
                 { "piece_potatowright_hang_herbs_description", "Thistles and dandelions hung heads down. Aim at a rope or chain and click: they hang there. They fall when their rope or chain goes." },
                 { "piece_potatowright_bunting", "Pennant bunting" },
-                { "piece_potatowright_bunting_description", "Flags along a whole rope or chain, a rune on each: aim at it and click. Mouse wheel: plain cloth or banner cloth. It falls when its rope or chain goes." },
+                { "piece_potatowright_bunting_description", "Flags along a whole rope or chain: aim at it and click. Mouse wheel: many colours, banner cloth or one colour, with or without runes. It falls when its rope or chain goes." },
                 { "piece_potatowright_fey", "Fey lights on a rope" },
                 { "piece_potatowright_fey_description", "Fey lights drifting along a rope." },
                 { "potatowright_hang_aim", "Aim at a rope or chain" },
-                { "potatowright_flags_plain", "Flags: plain cloth" },
-                { "potatowright_flags_cloth", "Flags: banner cloth" },
             });
+            LocalizationManager.Instance.GetLocalization().AddTranslation("English", HangPieces.LookTranslations());
         }
     }
 }
