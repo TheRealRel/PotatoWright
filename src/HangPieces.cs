@@ -848,3 +848,35 @@ namespace PotatoWright
         }
     }
 }
+
+namespace PotatoWright
+{
+    // TEST ONLY: the game's recipes for lanterns, read once the item database is up (test-c found no recipe for
+    // Lantern_DN at start, so the Deep North hanging lantern fell back to Bronze 1 + Resin 2). Logs only.
+    [HarmonyLib.HarmonyPatch(typeof(ObjectDB), "Awake")]
+    internal static class LanternRecipeProbe
+    {
+        private static bool s_done;
+
+        private static void Postfix(ObjectDB __instance)
+        {
+            if (!Plugin.TestBuild || s_done || __instance == null || __instance.m_recipes == null || __instance.m_recipes.Count == 0)
+            {
+                return;
+            }
+            s_done = true;
+            UnityEngine.GameObject item = __instance.GetItemPrefab("Lantern_DN");
+            ItemDrop drop = item ? item.GetComponent<ItemDrop>() : null;
+            Plugin.Debug("Probe: Lantern_DN item " + (bool)item + (drop ? ", name " + drop.m_itemData.m_shared.m_name + ", type " + drop.m_itemData.m_shared.m_itemType : "") + "; " + __instance.m_recipes.Count + " recipes");
+            foreach (Recipe r in __instance.m_recipes)
+            {
+                if (r == null || r.m_item == null || r.m_item.name.IndexOf("Lantern", System.StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+                string res = r.m_resources == null ? "none" : string.Join(", ", System.Linq.Enumerable.Select(r.m_resources, x => (x.m_resItem ? x.m_resItem.name : "?") + " x" + x.m_amount));
+                Plugin.Debug("Probe: recipe " + r.name + " makes " + r.m_item.name + ", enabled " + r.m_enabled + ", station " + (r.m_craftingStation ? r.m_craftingStation.name : "none") + ", " + res);
+            }
+        }
+    }
+}

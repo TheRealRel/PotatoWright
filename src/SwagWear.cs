@@ -12,7 +12,7 @@
 //    HitData) still count, the hammer still removes them, and a destroyed ship still destroys them (Build On Ship calls
 //    WearNTear.Destroy directly).
 // PotatoWright patches only the game here, not Build On Ship's own code, so an update of that mod can't break it.
-// The same holds for every piece carrying Steady: the swags, the scaffold (never falls) and the hangings (they fall
+// The same holds for every piece carrying Steady: the swags, the scaffold (it falls only when what it stands on goes, ScaffoldMark) and the hangings (they fall
 // only with their rope, Hanging.CheckHold).
 using HarmonyLib;
 

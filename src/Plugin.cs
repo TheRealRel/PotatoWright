@@ -113,7 +113,7 @@ namespace PotatoWright
                 { "potatowright_swag_tooshort", "Too short" },
                 { "potatowright_swag_sag", "Sag" },
                 { "piece_potatowright_scaffold", "Scaffold" },
-                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and line up at their corners. It never falls, and nothing else rests on it." },
+                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and line up at their corners. A frame falls when what it stands on is removed, and nothing else rests on it." },
                 { "piece_potatowright_hang_lantern", "Hanging lantern: Dvergr" },
                 { "piece_potatowright_hang_lantern_description", "Aim at a rope or chain and click: it hangs there and lights up like the game's lanterns. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_lantern_hooded", "Hanging lantern: hooded" },
