@@ -216,6 +216,11 @@ namespace PotatoWright
     // - A side with a frame beside it (same level, turned by a multiple of 90 degrees) loses its rail halfway up and its
     //   guard rail, so the frames open into each other.
     // - Only a frame with no frame on top of it shows the guard rail.
+    // - A side with a frame one level up or down beside it (a stair of frames) opens the guard rail or the rail halfway
+    //   up there.
+    // - A leg with nothing under its foot (within 1 m) is hidden with the rails halfway up that it holds (the user,
+    //   test-i: "Hide them"), and a guard post shows only while a guard rail it holds shows. Frames near a building piece
+    //   that loads or is placed look at their legs again (WearNTear.Awake), and so do frames near one that is destroyed.
     // Parts are hidden by switching their objects off (VPO 2.0's indirect renderer drops a renderer on OnDisable).
     // Falling (the user, test-c: "the scaffold should crash down when the bottom is removed"): nothing runs while nothing
     // changes. When any piece is destroyed (WearNTear.Destroy, on the client that destroys it), the scaffolds standing just
@@ -227,8 +232,26 @@ namespace PotatoWright
     {
         private static readonly System.Collections.Generic.List<ScaffoldMark> s_all = new System.Collections.Generic.List<ScaffoldMark>();
         private static readonly UnityEngine.Collider[] s_hits = new UnityEngine.Collider[32];
+        private static readonly UnityEngine.RaycastHit[] s_casts = new UnityEngine.RaycastHit[32];
         private static int s_mask;
         private const float CheckDelay = 0.3f, Level = 0.2f, Beside = 0.25f;
+        // A leg shows when something lies under its foot within this reach (the user, test-i: legs that stand on nothing,
+        // like the far legs of a frame stepped up a stair, are hidden). A frame placed on sloping ground keeps the leg
+        // on the downhill side as long as the ground is this close.
+        private const float LegReach = 1f;
+
+        // The game's support mask, plus vehicle so a frame on a ship's deck stands (as Swag's ends).
+        private static int Mask
+        {
+            get
+            {
+                if (s_mask == 0)
+                {
+                    s_mask = UnityEngine.LayerMask.GetMask("piece", "Default", "static_solid", "Default_small", "terrain", "vehicle");
+                }
+                return s_mask;
+            }
+        }
         private bool m_falling, m_listed;
         private ZNetView m_nview;
         private UnityEngine.GameObject[] m_posts, m_guardPosts;
@@ -355,6 +378,34 @@ namespace PotatoWright
 
         private UnityEngine.Vector3 Spot(int i) => transform.TransformPoint(ScaffoldPiece.Origin + new UnityEngine.Vector3(ScaffoldPiece.PostSpots[i].x, 0f, ScaffoldPiece.PostSpots[i].y));
 
+        // Something under the foot of post i: a thin box a little wider than the post (so the edge beam of a frame below,
+        // which the post stands just beside, counts) swept down from just above the foot to LegReach below it. Anything
+        // the sweep meets counts; of what the box already touches before it moves, only things other than scaffolds
+        // count (ground or a rock around a leg that sinks into a slope), since other frames' posts and rails there stand
+        // beside the leg, not under it. The frame's own parts are skipped.
+        private bool StandsOnSomething(int i, out string on)
+        {
+            UnityEngine.Vector3 up = transform.up;
+            UnityEngine.Vector3 start = Spot(i) + up * 0.15f;
+            int n = UnityEngine.Physics.BoxCastNonAlloc(start, new UnityEngine.Vector3(0.17f, 0.05f, 0.17f), -up, s_casts, transform.rotation, 0.1f + LegReach, Mask, UnityEngine.QueryTriggerInteraction.Ignore);
+            for (int k = 0; k < n; k++)
+            {
+                UnityEngine.Collider c = s_casts[k].collider;
+                if (c == null || c.transform.IsChildOf(transform))
+                {
+                    continue;
+                }
+                if (s_casts[k].distance <= 0f && c.GetComponentInParent<ScaffoldMark>() != null)
+                {
+                    continue;
+                }
+                on = c.name;
+                return true;
+            }
+            on = null;
+            return false;
+        }
+
         // Another frame on the same level, with a lower ZDOID, has a post beside this one's post i (guard: only frames
         // with no frame on top, whose guard posts show).
         private bool Yields(int i, bool guard)
@@ -381,7 +432,23 @@ namespace PotatoWright
 
         private void Reshape()
         {
+            if (!Live)
+            {
+                return;
+            }
             bool top = !HasFrameOnTop();
+            // Legs over nothing (the user, test-i: "Hide them"), and the rails halfway up that would hang from them.
+            if (GetComponentInParent<Ship>() != null)
+            {
+                UnityEngine.Physics.SyncTransforms(); // a moving ship's colliders lag their transforms
+            }
+            bool[] leg = new bool[m_posts.Length];
+            string legs = "";
+            for (int i = 0; i < m_posts.Length; i++)
+            {
+                leg[i] = StandsOnSomething(i, out string on);
+                legs += " " + i + (leg[i] ? " on " + on : " over nothing");
+            }
             // Open sides (the user, test-h: frames built as a stair, each one beside and one level up from the last, kept
             // the lower frame's guard rail between its deck and the next frame's ladder). A frame beside on the same level
             // opens both rails on that side; one a level up opens the guard rail (its foot is at this deck); one a level
@@ -389,17 +456,25 @@ namespace PotatoWright
             bool[] same = { FrameBeside(2f, 0f, 0f), FrameBeside(0f, -2f, 0f), FrameBeside(0f, 2f, 0f) };
             bool[] up = { FrameBeside(2f, 0f, 2f), FrameBeside(0f, -2f, 2f), FrameBeside(0f, 2f, 2f) };
             bool[] down = { FrameBeside(2f, 0f, -2f), FrameBeside(0f, -2f, -2f), FrameBeside(0f, 2f, -2f) };
-            Show(m_railSide, !same[0] && !down[0]);
-            Show(m_railBack, !same[1] && !down[1]);
-            Show(m_railFront, !same[2] && !down[2]);
-            Show(m_guardSide, top && !same[0] && !up[0]);
-            Show(m_guardBack, top && !same[1] && !up[1]);
-            Show(m_guardFront, top && !same[2] && !up[2]);
+            // Each rail runs between two posts (PostSpots: 0 deck front outer, 1 deck back outer, 2 ladder back, 3 deck
+            // front inner): the deck side 0-1, the back 1-2, the front 3-0.
+            Show(m_railSide, !same[0] && !down[0] && leg[0] && leg[1]);
+            Show(m_railBack, !same[1] && !down[1] && leg[1] && leg[2]);
+            Show(m_railFront, !same[2] && !down[2] && leg[3] && leg[0]);
+            bool guardSide = top && !same[0] && !up[0];
+            bool guardBack = top && !same[1] && !up[1];
+            bool guardFront = top && !same[2] && !up[2];
+            Show(m_guardSide, guardSide);
+            Show(m_guardBack, guardBack);
+            Show(m_guardFront, guardFront);
+            // A guard post shows only while a guard rail it holds shows (test-i: one left alone at the top of the ladder
+            // once the guard rail beside it opened for the next frame of a stair).
+            bool[] held = { guardSide || guardFront, guardBack || guardSide, guardBack, guardFront };
             string hidden = "";
             for (int i = 0; i < m_posts.Length; i++)
             {
-                bool post = !Yields(i, false);
-                bool guard = top && !Yields(i, true) && !PostAbove(i);
+                bool post = leg[i] && !Yields(i, false);
+                bool guard = top && held[i] && !Yields(i, true) && !PostAbove(i);
                 Show(m_posts[i], post);
                 Show(m_guardPosts[i], guard);
                 if (!post) hidden += " post " + i;
@@ -413,7 +488,7 @@ namespace PotatoWright
                 if (up[k]) beside += ", frame a level up at the " + sides[k];
                 if (down[k]) beside += ", frame a level down at the " + sides[k];
             }
-            Plugin.Debug("Scaffold at " + transform.position + " (middle " + Middle + ", turned " + transform.eulerAngles.y.ToString("0.0") + "): " + (top ? "top, guard rail" : "frame on top") + beside + (hidden.Length > 0 ? ", hidden:" + hidden : ""));
+            Plugin.Debug("Scaffold at " + transform.position + " (middle " + Middle + ", turned " + transform.eulerAngles.y.ToString("0.0") + "): " + (top ? "top, guard rail" : "frame on top") + beside + (hidden.Length > 0 ? ", hidden:" + hidden : "") + "; legs:" + legs);
         }
 
         private static void Show(UnityEngine.GameObject part, bool on)
@@ -451,6 +526,33 @@ namespace PotatoWright
             }
         }
 
+        // A building piece came (loaded or placed, on every client): the frames within reach above it take their shape
+        // again a moment later, so a leg over a piece that loaded after the frame shows. The ground is always there
+        // first (ZNetScene.CreateObjectsSorted creates nothing until ZoneSystem.IsActiveAreaLoaded); other pieces load
+        // in the same pass as the frames, in no set order. Frames themselves are handled in Start.
+        internal static void PieceCame(WearNTear came)
+        {
+            if (s_all.Count == 0 || came == null || came.m_nview == null || !came.m_nview.IsValid() || came.GetComponent<ScaffoldMark>() != null)
+            {
+                return;
+            }
+            UnityEngine.Vector3 at = came.transform.position;
+            foreach (ScaffoldMark s in s_all)
+            {
+                if (s == null || s.m_falling || !s.Live)
+                {
+                    continue;
+                }
+                UnityEngine.Vector3 d = s.Middle - at;
+                if (UnityEngine.Mathf.Abs(d.x) > 5f || UnityEngine.Mathf.Abs(d.z) > 5f || d.y < -1f || d.y > 6f)
+                {
+                    continue;
+                }
+                s.CancelInvoke(nameof(Reshape));
+                s.Invoke(nameof(Reshape), CheckDelay);
+            }
+        }
+
         private void CheckFeet()
         {
             WearNTear wear = GetComponent<WearNTear>();
@@ -458,21 +560,18 @@ namespace PotatoWright
             {
                 return;
             }
-            if (s_mask == 0)
-            {
-                // The game's support mask, plus vehicle so a frame on a ship's deck stands (as Swag's ends).
-                s_mask = UnityEngine.LayerMask.GetMask("piece", "Default", "static_solid", "Default_small", "terrain", "vehicle");
-            }
             // Its feet: the 2 x 2 m base, from 0.25 m below to 0.1 m above, kept 5 cm in from the edges so frames beside
             // it don't count.
             UnityEngine.Vector3 center = transform.TransformPoint(ScaffoldPiece.Origin + new UnityEngine.Vector3(0f, -0.075f, 0f));
-            int n = UnityEngine.Physics.OverlapBoxNonAlloc(center, new UnityEngine.Vector3(0.95f, 0.175f, 0.95f), s_hits, transform.rotation, s_mask, UnityEngine.QueryTriggerInteraction.Ignore);
+            int n = UnityEngine.Physics.OverlapBoxNonAlloc(center, new UnityEngine.Vector3(0.95f, 0.175f, 0.95f), s_hits, transform.rotation, Mask, UnityEngine.QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
             {
                 UnityEngine.Collider c = s_hits[i];
                 if (c != null && !c.transform.IsChildOf(transform))
                 {
                     Plugin.Debug("Scaffold at " + transform.position + " stands on " + c.name + " (layer " + UnityEngine.LayerMask.LayerToName(c.gameObject.layer) + ")");
+                    // It stays, but what was under one of its legs may be gone.
+                    Reshape();
                     return;
                 }
             }
@@ -488,6 +587,15 @@ namespace PotatoWright
         private static void Postfix(WearNTear __instance)
         {
             ScaffoldMark.PieceGone(__instance);
+        }
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(WearNTear), "Awake")]
+    internal static class ScaffoldLegs
+    {
+        private static void Postfix(WearNTear __instance)
+        {
+            ScaffoldMark.PieceCame(__instance);
         }
     }
 }
