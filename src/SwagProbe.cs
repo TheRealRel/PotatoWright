@@ -13,6 +13,8 @@ namespace PotatoWright
     internal static class SwagProbe
     {
         private static readonly HashSet<int> s_wearLogged = new HashSet<int>();
+        private static readonly HashSet<int> s_supportLogged = new HashSet<int>();
+        private static int s_supportCalls;
 
         private static bool Prepare()
         {
@@ -97,6 +99,22 @@ namespace PotatoWright
             if (IsSwag(__instance) && s_wearLogged.Add(__instance.GetInstanceID()))
             {
                 Plugin.Debug("PROBE swag " + __instance.name + " first wear update; " + State(__instance));
+            }
+        }
+    
+        // test-o: support should no longer be worked out for swags at all.
+        [HarmonyPatch(typeof(WearNTear), "UpdateSupport")]
+        [HarmonyPrefix]
+        private static void UpdateSupport(WearNTear __instance)
+        {
+            if (!IsSwag(__instance))
+            {
+                return;
+            }
+            s_supportCalls++;
+            if (s_supportLogged.Add(__instance.GetInstanceID()))
+            {
+                Plugin.Debug("PROBE swag " + __instance.name + " UpdateSupport called (" + s_supportCalls + " so far); " + State(__instance) + "; from " + Where());
             }
         }
     }
