@@ -21,7 +21,7 @@ namespace PotatoWright
         public const string Id = "potato.wright", Version = "1.0.0";
 
         // Test builds log what they do (Debug); releases don't.
-        internal const bool TestBuild = true;
+        internal const bool TestBuild = false;
 
         internal const string Tag = "[PotatoWright]";
 
@@ -90,12 +90,9 @@ namespace PotatoWright
                 { "piece_potatowright_swag_iron", "Iron chain" },
                 { "piece_potatowright_swag_bronze", "Bronze chain" },
                 { "piece_potatowright_swag_blackmetal", "Black metal chain" },
-                { "piece_potatowright_swag_test_iron", "TEST old iron chain (remove)" },
-                { "piece_potatowright_swag_test_bronze", "TEST old bronze chain (remove)" },
-                { "piece_potatowright_swag_test_blackmetal", "TEST old black metal chain (remove)" },
                 { "piece_potatowright_swag_description", "Hangs between two points. Click the first end, roll the mouse wheel to set the sag, then click the second end (up to 16 m). It falls if either end loses what it hangs from." },
                 { "potatowright_swag_first", "First end set. Wheel: sag. Click the second end." },
-                { "potatowright_swag_cancel", "Swag cancelled" },
+                { "potatowright_swag_cancel", "First end dropped" },
                 { "potatowright_swag_toolong", "Too long: up to 16 m" },
                 { "potatowright_swag_tooshort", "Too short" },
                 { "potatowright_swag_sag", "Sag" },

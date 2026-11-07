@@ -4,7 +4,6 @@
 // RenderManager's camera looks along -z at the object's +z side, lit from the camera's side.
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Jotunn.Managers;
 using UnityEngine;
 
@@ -75,14 +74,6 @@ namespace PotatoWright
                 icon.Apply();
                 Sprite sprite = Sprite.Create(icon, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f));
                 sprite.name = name + "_icon";
-                if (Plugin.TestBuild)
-                {
-                    // TEST ONLY: the pictures, for checking without a game.
-                    string dir = Path.Combine(BepInEx.Paths.BepInExRootPath, "PotatoWright-test-icons");
-                    Directory.CreateDirectory(dir);
-                    File.WriteAllBytes(Path.Combine(dir, name + "_render.png"), render.texture.EncodeToPNG());
-                    File.WriteAllBytes(Path.Combine(dir, name + ".png"), icon.EncodeToPNG());
-                }
                 return sprite;
             }
             catch (Exception ex)

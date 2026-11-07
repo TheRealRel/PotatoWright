@@ -133,16 +133,6 @@ namespace PotatoWright
             Add("PotatoWright_SwagChainIron", "piece_potatowright_swag_iron", 1, true, "iron_grate", "forge", "Iron", 1, iron);
             Add("PotatoWright_SwagChainBronze", "piece_potatowright_swag_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, bronze);
             Add("PotatoWright_SwagChainBlackMetal", "piece_potatowright_swag_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, black);
-            if (Plugin.TestBuild)
-            {
-                // TEST ONLY: the old look-test pieces (3D links, now the real chains' look). Kept so ones already placed in
-                // the test world still load and can be removed with the hammer, but not in the hammer's build menu. A
-                // world object whose prefab is gone stays in the save, unseen and unremovable (ZNetScene.CreateObject only
-                // warns "Missing prefab hash"), so none may be left when these go.
-                Add("PotatoWright_TestSwagChainIronLinks", "piece_potatowright_swag_test_iron", 1, true, "iron_grate", "forge", "Iron", 1, chain, false);
-                Add("PotatoWright_TestSwagChainBronzeLinks", "piece_potatowright_swag_test_bronze", 2, true, "iron_grate", "forge", "Bronze", 1, chain, false);
-                Add("PotatoWright_TestSwagChainBlackMetalLinks", "piece_potatowright_swag_test_blackmetal", 3, true, "iron_grate", "forge", "BlackMetal", 1, chain, false);
-            }
         }
 
         private static Sprite ItemIcon(string item)
@@ -153,7 +143,7 @@ namespace PotatoWright
             return (icons != null && icons.Length > 0) ? icons[0] : null;
         }
 
-        private static void Add(string name, string token, int kind, bool links, string baseName, string station, string item, int amount, Sprite icon, bool buildable = true)
+        private static void Add(string name, string token, int kind, bool links, string baseName, string station, string item, int amount, Sprite icon)
         {
             CustomPiece custom = new CustomPiece(name, baseName, new PieceConfig
             {
@@ -209,17 +199,7 @@ namespace PotatoWright
             Swag swag = prefab.AddComponent<Swag>();
             swag.m_kind = kind;
             swag.m_links = links;
-            if (buildable)
-            {
-                PieceManager.Instance.AddPiece(custom);
-            }
-            else
-            {
-                // Not in the hammer at all (Piece.m_enabled false isn't enough: PieceTable.UpdateAvailable lists disabled
-                // pieces when placement cost is off or the world has "all pieces unlocked"), only known to the game so
-                // placed ones load and can be removed. Its mock materials and station are resolved like a piece's.
-                PrefabManager.Instance.AddPrefab(new CustomPrefab(prefab, true));
-            }
+            PieceManager.Instance.AddPiece(custom);
             Plugin.Debug("Swag piece " + name + " (" + baseName + " copy, " + item + " x" + amount + " at " + station + ")");
         }
     }
@@ -290,14 +270,6 @@ namespace PotatoWright
                 Build(end, zdo.GetFloat(SagKey, 0.15f), true);
             }
             InvokeRepeating(nameof(CheckEnds), UnityEngine.Random.Range(3f, 6f), 3f);
-        }
-
-        private void OnDestroy()
-        {
-            if (Plugin.TestBuild && m_nview != null && m_nview.GetZDO() != null)
-            {
-                Plugin.Debug("PROBE swag " + name + " object destroyed after " + (Time.time - m_start).ToString("0.0") + " s (parent " + (transform.parent != null ? transform.parent.name : "none") + ")");
-            }
         }
 
         public void OnPlaced()
@@ -729,10 +701,6 @@ namespace PotatoWright
             }
             Vector3 a = transform.position, b = transform.TransformPoint(m_end);
             bool heldA = Held(a), heldB = Held(b);
-            if (ship != null && Plugin.TestBuild)
-            {
-                Plugin.Debug("Swag " + name + " on " + ship.name + ": ends held " + heldA + "/" + heldB + ", support " + m_nview.GetZDO().GetFloat(ZDOVars.s_support, -1f).ToString("0") + ", health " + m_nview.GetZDO().GetFloat(ZDOVars.s_health, -1f).ToString("0"));
-            }
             if (heldA && heldB)
             {
                 m_misses = 0;

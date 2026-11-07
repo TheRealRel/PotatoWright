@@ -5,7 +5,6 @@
 // soft dark shadow. Nothing of the game's art is shipped; the icon is drawn on each PC.
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Jotunn.Managers;
 using UnityEngine;
 
@@ -76,14 +75,6 @@ namespace PotatoWright
                 Sprite sprite = Sprite.Create(icon, new Rect(0f, 0f, icon.width, icon.height), new Vector2(0.5f, 0.5f));
                 sprite.name = name + "_icon";
                 prefab.GetComponent<Piece>().m_icon = sprite;
-                if (Plugin.TestBuild)
-                {
-                    // TEST ONLY: the pictures, for checking without a game.
-                    string dir = Path.Combine(BepInEx.Paths.BepInExRootPath, "PotatoWright-test-icons");
-                    Directory.CreateDirectory(dir);
-                    File.WriteAllBytes(Path.Combine(dir, name + "_render.png"), render.texture.EncodeToPNG());
-                    File.WriteAllBytes(Path.Combine(dir, name + ".png"), icon.EncodeToPNG());
-                }
                 return true;
             }
             catch (Exception ex)
