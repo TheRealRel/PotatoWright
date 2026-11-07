@@ -117,7 +117,7 @@ namespace PotatoWright
                 { "piece_potatowright_hang_lantern", "Hanging lantern: Dvergr" },
                 { "piece_potatowright_hang_lantern_description", "Aim at a rope or chain and click: it hangs there and lights up like the game's lanterns. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_lantern_hooded", "Hanging lantern: hooded" },
-                { "piece_potatowright_hang_lantern_hooded_description", "A hooded lantern that throws its beam out from the rope and down. Aim at a rope or chain and click. It falls when its rope or chain goes." },
+                { "piece_potatowright_hang_lantern_hooded_description", "A hooded lantern that throws its beam out and down. Aim at a rope or chain, turn it with the mouse wheel and click. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_lantern_deepnorth", "Hanging lantern: Deep North" },
                 { "piece_potatowright_hang_lantern_deepnorth_description", "The Deep North's iron lamp. Aim at a rope or chain and click. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_lantern_snow", "Hanging lantern: snow" },

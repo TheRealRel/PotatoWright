@@ -249,7 +249,13 @@ namespace PotatoWright
         private static Swag s_target;
         private static Vector3 s_end;
         private static float s_sag;
-        private static int s_style, s_step;
+        private static int s_style, s_step, s_turn;
+        // A spot hanging's turn on its rope (the user, test-f: "The hooded lantern needs to be rotatable"), in the game's
+        // own building step.
+        private const float TurnStep = 22.5f;
+
+        // Aimed at a placed rope or chain this frame (the camera keeps its zoom then: WheelNoZoom).
+        internal static bool Locked => s_target != null;
         private static float s_wheel;
         private static Player.PlacementStatus s_lastStatus = (Player.PlacementStatus)(-1);
 
@@ -312,7 +318,7 @@ namespace PotatoWright
                 Vector3 tangent = curve[Mathf.Min(best + 1, curve.Count - 1)] - curve[Mathf.Max(best - 1, 0)];
                 Vector3 forward = Vector3.ProjectOnPlane(st.TransformDirection(tangent), up);
                 ghost.transform.position = st.TransformPoint(curve[best]);
-                ghost.transform.rotation = forward.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(forward, up) : st.rotation;
+                ghost.transform.rotation = (forward.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(forward, up) : st.rotation) * Quaternion.Euler(0f, s_turn * TurnStep, 0f);
             }
             s_target = swag;
             if (__instance.m_placementStatus == Player.PlacementStatus.Valid)
@@ -325,18 +331,31 @@ namespace PotatoWright
             if (hanging.IsString) hanging.SetInvalid(__instance.m_placementStatus != Player.PlacementStatus.Valid);
         }
 
-        // Bunting: the mouse wheel steps through the looks (HangPieces.LookOrder), up forward and down back.
+        // While aimed at a rope or chain, the mouse wheel steps the bunting through its looks (HangPieces.LookOrder) and turns
+        // a spot hanging (lanterns, brazier, herbs) on the rope, up forward and down back. Not aimed at one, the wheel is
+        // the camera's.
         [HarmonyPatch(typeof(Player), "UpdatePlacement")]
         [HarmonyPostfix]
         private static void UpdatePlacement_Postfix(Player __instance, bool takeInput)
         {
             if (__instance != Player.m_localPlayer || !takeInput) return;
             Hanging hanging = GhostHanging(__instance);
-            if (hanging == null || hanging.m_kind != HangPieces.Bunting || Hud.IsPieceSelectionVisible()) return;
+            if (hanging == null || Hud.IsPieceSelectionVisible() || (hanging.IsString && hanging.m_kind != HangPieces.Bunting)) return;
+            if (s_target == null)
+            {
+                s_wheel = 0f;
+                return;
+            }
             s_wheel += ZInput.GetMouseScrollWheel();
             if (Mathf.Abs(s_wheel) < __instance.m_scrollAmountThreshold) return;
             int dir = s_wheel > 0f ? 1 : -1;
             s_wheel = 0f;
+            if (hanging.m_kind != HangPieces.Bunting)
+            {
+                s_turn = (s_turn + dir + 16) % 16;
+                Plugin.Debug("Hanging turn " + (s_turn * TurnStep) + " degrees");
+                return;
+            }
             int n = HangPieces.LookOrder.Length;
             s_step = ((s_step + dir) % n + n) % n;
             s_style = HangPieces.LookOrder[s_step];

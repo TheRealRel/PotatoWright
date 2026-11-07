@@ -365,6 +365,23 @@ namespace PotatoWright
             if (part != null && part.activeSelf != on) part.SetActive(on);
         }
 
+        // The live frame whose collider this is, if any.
+        internal static ScaffoldMark Of(UnityEngine.Collider c)
+        {
+            ScaffoldMark s = c != null ? c.GetComponentInParent<ScaffoldMark>() : null;
+            return s != null && s.Live ? s : null;
+        }
+
+        // A frame already stands there.
+        internal static bool Taken(UnityEngine.Vector3 at)
+        {
+            foreach (ScaffoldMark s in s_all)
+            {
+                if (s != null && s.Live && (s.transform.position - at).sqrMagnitude < 0.04f) return true;
+            }
+            return false;
+        }
+
         // A piece near was destroyed: the frames standing within reach above it look under their feet.
         internal static void PieceGone(WearNTear gone)
         {
@@ -423,6 +440,59 @@ namespace PotatoWright
             m_falling = true;
             Plugin.Debug("Scaffold at " + transform.position + ": nothing under its feet, falls");
             wear.Remove();
+        }
+    }
+
+    // Placing a scaffold aimed at a scaffold (the user, test-f: frames placed on top landed one frame over, beside and
+    // above, so they neither stacked nor met side by side, and the shape never changed; log 2026-11-07 01:07: offsets of
+    // exactly 2 m sideways and 2 m up). The game snaps the nearest pair of corner snap points, which on a 2 m frame is
+    // often a corner one frame over. Instead the frame goes where the aim says: on a top face in the top half (deck, top
+    // beam or guard rail) straight on top; on an underside at the bottom straight under; anything else (a side, a ladder
+    // step, a mid rail) the frame beside it, on the same level (the side
+    // nearest the aimed point, so a rail's inner face counts for its own side). It is turned like the aimed frame plus the
+    // player's turn rounded to a quarter, so the ladder can face any side. Holding the game's no-snap key leaves the game's
+    // own placing. A place another frame already holds is refused.
+    [HarmonyLib.HarmonyPatch(typeof(Player), "UpdatePlacementGhost")]
+    internal static class ScaffoldPlacing
+    {
+        private static string s_last;
+
+        private static void Postfix(Player __instance)
+        {
+            if (__instance != Player.m_localPlayer || __instance.m_placementGhost == null || GameCamera.instance == null) return;
+            UnityEngine.GameObject ghost = __instance.m_placementGhost;
+            if (!ghost.activeSelf || ghost.GetComponent<ScaffoldMark>() == null) return;
+            if (ZInput.GetButton("AltPlace") || ZInput.GetButton("JoyAltKeys")) return;
+            UnityEngine.Transform cam = GameCamera.instance.transform;
+            if (!UnityEngine.Physics.Raycast(cam.position, cam.forward, out UnityEngine.RaycastHit hit, 50f, __instance.m_placeRayMask)) return;
+            ScaffoldMark target = ScaffoldMark.Of(hit.collider);
+            if (target == null) return;
+            UnityEngine.Transform t = target.transform;
+            UnityEngine.Vector3 n = t.InverseTransformDirection(hit.normal), p = t.InverseTransformPoint(hit.point);
+            UnityEngine.Vector3 slot;
+            string where;
+            if (n.y > 0.7f && p.y > 1.5f) { slot = new UnityEngine.Vector3(0f, 2f, 0f); where = "on top"; }
+            else if (n.y < -0.7f && p.y < 0.5f) { slot = new UnityEngine.Vector3(0f, -2f, 0f); where = "under"; }
+            else if (UnityEngine.Mathf.Abs(p.x) >= UnityEngine.Mathf.Abs(p.z)) { slot = new UnityEngine.Vector3(p.x >= 0f ? 2f : -2f, 0f, 0f); where = p.x >= 0f ? "beside, deck side" : "beside, ladder side"; }
+            else { slot = new UnityEngine.Vector3(0f, 0f, p.z >= 0f ? 2f : -2f); where = p.z >= 0f ? "beside, front" : "beside, back"; }
+            float turn = ghost.transform.eulerAngles.y - t.eulerAngles.y;
+            float quarter = UnityEngine.Mathf.Round(turn / 90f) * 90f;
+            UnityEngine.Vector3 at = t.TransformPoint(slot);
+            ghost.transform.position = at;
+            ghost.transform.rotation = t.rotation * UnityEngine.Quaternion.Euler(0f, quarter, 0f);
+            if (__instance.m_placementStatus == Player.PlacementStatus.Valid)
+            {
+                if (ScaffoldMark.Taken(at)) __instance.m_placementStatus = Player.PlacementStatus.Invalid;
+                else if (Location.IsInsideNoBuildLocation(at)) __instance.m_placementStatus = Player.PlacementStatus.NoBuildZone;
+                else if (!PrivateArea.CheckAccess(at, 0f, false, false)) __instance.m_placementStatus = Player.PlacementStatus.PrivateZone;
+                __instance.SetPlacementGhostValid(__instance.m_placementStatus == Player.PlacementStatus.Valid);
+            }
+            string now = where + " " + target.transform.position + ", turned " + quarter + ", status " + __instance.m_placementStatus;
+            if (now != s_last)
+            {
+                s_last = now;
+                Plugin.Debug("Scaffold ghost: " + now);
+            }
         }
     }
 

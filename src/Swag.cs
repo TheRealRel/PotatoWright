@@ -736,6 +736,8 @@ namespace PotatoWright
     internal static class SwagPlacing
     {
         private static bool s_hasFirst;
+        // The first end is set: the wheel sets the sag (the camera keeps its zoom then: WheelNoZoom).
+        internal static bool Choosing => s_hasFirst;
         private static Vector3 s_first;
         // The first end on a ship (Build On Ship): kept in the ship's own space so it moves with the ship.
         private static Ship s_firstShip;
