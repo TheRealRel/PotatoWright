@@ -28,6 +28,8 @@ The mannequins sit under one fold-open Mannequins entry in the build menu, openi
 
 They're decoration: nothing stands on them and they don't hold anything up, and rain and weather leave them alone. With Build On Ship, they ride on your ship and stay up while it sails.
 
+![Chains rigged from the mast across a longship's deck](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/swags-ship.jpg)
+
 Everyone needs the mod, the server included, because the pieces are part of your world. Dedicated servers load it too. It's part of the PotatoServer pack for the Potato Server.
 
 Bug reports go to [GitHub Issues](https://github.com/TheRealRel/PotatoWright/issues), where the source lives too. Questions are welcome on Discord: [relanebeis](https://discord.com/users/373574370267889674).
