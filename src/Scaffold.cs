@@ -19,7 +19,7 @@ namespace PotatoWright
     internal static class ScaffoldPiece
     {
         internal const string Name = "PotatoWright_Scaffold";
-        private const float Post = 0.14f, Rail = 0.1f;
+        private const float Post = 0.14f, Rail = 0.1f, TopBeam = 0.08f;
 
         internal static void Create()
         {
@@ -67,18 +67,33 @@ namespace PotatoWright
             frame.transform.SetParent(prefab.transform, false);
             frame.layer = layer;
             List<Renderer> renderers = new List<Renderer>();
-            // Posts (the pole's cube is long along its x, so turned upright).
+            // Posts (the pole's cube is long along its x, so turned upright). None at the ladder's foot (front, ladder side):
+            // it stood in the corner of the bottom step (the user, test-a: "the first beam, on the bottom right of the
+            // ladder"); the ladder's own side rail is that side's brace.
             float c = 1f - Post / 2f;
-            foreach (Vector2 corner in new[] { new Vector2(c, c), new Vector2(-c, c), new Vector2(c, -c), new Vector2(-c, -c) })
+            foreach (Vector2 corner in new[] { new Vector2(c, c), new Vector2(c, -c), new Vector2(-c, -c) })
             {
                 renderers.Add(Beam(frame, "post", cube, wood, new Vector3(corner.x, 1f, corner.y), Quaternion.Euler(0f, 0f, 90f), new Vector3(2f, Post, Post)));
             }
+            // A post at the deck's front inner corner, beside the ladder's foot (outside its steps): it holds the inner
+            // ends of the front rail and the front top beam, and the beam under the deck's inner edge.
+            renderers.Add(Beam(frame, "post_middle", cube, wood, new Vector3(Post / 2f, 1f, c), Quaternion.Euler(0f, 0f, 90f), new Vector3(2f, Post, Post)));
             // Rails halfway up: the back and the deck side all along, the front under the deck only (the ladder's foot
             // stays open). None on the ladder side: the ladder's own sides are there.
             float r = 1f - Post / 2f;
             renderers.Add(Beam(frame, "rail_back", cube, wood, new Vector3(0f, 1f, -r), Quaternion.identity, new Vector3(2f, Rail, Rail)));
             renderers.Add(Beam(frame, "rail_side", cube, wood, new Vector3(r, 1f, 0f), Quaternion.Euler(0f, 90f, 0f), new Vector3(2f, Rail, Rail)));
             renderers.Add(Beam(frame, "rail_front", cube, wood, new Vector3(0.5f, 1f, r), Quaternion.identity, new Vector3(1f, Rail, Rail)));
+            // Top beams just under the deck (the user's choice, test-a: "Top beams all round"): the back (the ladder's top
+            // step rests on it), the deck side, the front under the deck only (one over the ladder's foot would be in the
+            // way of the climber's head), and one under the deck's inner edge. The ladder side has no front post to hold
+            // a top beam; its ladder rail runs from the foot up to the back post.
+            const float top = 2f - TopBeam;
+            float e = 1f - TopBeam / 2f;
+            renderers.Add(Beam(frame, "top_back", cube, wood, new Vector3(0f, top, -e), Quaternion.identity, new Vector3(2f, Rail, TopBeam)));
+            renderers.Add(Beam(frame, "top_deck_side", cube, wood, new Vector3(e, top, 0f), Quaternion.Euler(0f, 90f, 0f), new Vector3(2f, Rail, TopBeam)));
+            renderers.Add(Beam(frame, "top_front", cube, wood, new Vector3(0.5f, top, e), Quaternion.identity, new Vector3(1f, Rail, TopBeam)));
+            renderers.Add(Beam(frame, "top_middle", cube, wood, new Vector3(TopBeam / 2f, top, 0f), Quaternion.Euler(0f, 90f, 0f), new Vector3(2f, Rail, TopBeam)));
             // The deck: the wood floor's planks squeezed to 1 m across, its top level with the ladder's top step (2.05 m).
             if (deckMesh)
             {
@@ -124,7 +139,10 @@ namespace PotatoWright
                 wear.m_supports = false;
             }
             prefab.AddComponent<Steady>();
+            prefab.AddComponent<ScaffoldMark>();
             Piece piece = prefab.GetComponent<Piece>();
+            if (piece) Plugin.Debug("Scaffold: the stepladder's noClipping was " + piece.m_noClipping + ", now off");
+            if (piece) piece.m_noClipping = false;
             Sprite icon = PieceIcons.FromRenderers(Name, prefab, Quaternion.Euler(18f, 35f, 0f));
             if (icon && piece) piece.m_icon = icon;
             PieceManager.Instance.AddPiece(custom);
@@ -146,5 +164,13 @@ namespace PotatoWright
             if (material) r.sharedMaterial = material;
             return r;
         }
+    }
+}
+
+namespace PotatoWright
+{
+    // On the scaffold: scaffolds can be placed while aiming at one (AimAtHolders).
+    public sealed class ScaffoldMark : UnityEngine.MonoBehaviour
+    {
     }
 }
