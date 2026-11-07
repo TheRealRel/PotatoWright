@@ -321,13 +321,34 @@ namespace PotatoWright
             return false;
         }
 
-        private bool FrameBeside(float x, float z)
+        // A frame beside this one on that side (x, z between the frames' middles), its foot y above this one's (0 the same
+        // level, 2 one level up, -2 one level down), turned by a multiple of 90 degrees.
+        private bool FrameBeside(float x, float z, float y)
         {
             foreach (ScaffoldMark o in s_all)
             {
                 if (o == this || o == null || !o.Live || !Square(o)) continue;
                 UnityEngine.Vector3 d = Local(o);
-                if (UnityEngine.Mathf.Abs(d.y) < Level && UnityEngine.Mathf.Abs(d.x - x) < Level && UnityEngine.Mathf.Abs(d.z - z) < Level) return true;
+                if (UnityEngine.Mathf.Abs(d.y - y) < Level && UnityEngine.Mathf.Abs(d.x - x) < Level && UnityEngine.Mathf.Abs(d.z - z) < Level) return true;
+            }
+            return false;
+        }
+
+        // A frame one level up has a post beside this one's post i (a guard post there would stand doubled beside it).
+        private bool PostAbove(int i)
+        {
+            UnityEngine.Vector3 mine = Spot(i);
+            foreach (ScaffoldMark o in s_all)
+            {
+                if (o == this || o == null || !o.Live) continue;
+                UnityEngine.Vector3 apart = o.Middle - Middle;
+                if (UnityEngine.Mathf.Abs(apart.y - 2f) > Level || UnityEngine.Mathf.Abs(apart.x) > 3f || UnityEngine.Mathf.Abs(apart.z) > 3f) continue;
+                for (int j = 0; j < ScaffoldPiece.PostSpots.Length; j++)
+                {
+                    UnityEngine.Vector3 d = o.Spot(j) - mine;
+                    d.y = 0f;
+                    if (d.magnitude < Beside) return true;
+                }
             }
             return false;
         }
@@ -361,24 +382,38 @@ namespace PotatoWright
         private void Reshape()
         {
             bool top = !HasFrameOnTop();
-            bool deckSide = FrameBeside(2f, 0f), back = FrameBeside(0f, -2f), front = FrameBeside(0f, 2f);
-            Show(m_railSide, !deckSide);
-            Show(m_railBack, !back);
-            Show(m_railFront, !front);
-            Show(m_guardSide, top && !deckSide);
-            Show(m_guardBack, top && !back);
-            Show(m_guardFront, top && !front);
+            // Open sides (the user, test-h: frames built as a stair, each one beside and one level up from the last, kept
+            // the lower frame's guard rail between its deck and the next frame's ladder). A frame beside on the same level
+            // opens both rails on that side; one a level up opens the guard rail (its foot is at this deck); one a level
+            // down opens the rail halfway up (this frame's foot is at its deck).
+            bool[] same = { FrameBeside(2f, 0f, 0f), FrameBeside(0f, -2f, 0f), FrameBeside(0f, 2f, 0f) };
+            bool[] up = { FrameBeside(2f, 0f, 2f), FrameBeside(0f, -2f, 2f), FrameBeside(0f, 2f, 2f) };
+            bool[] down = { FrameBeside(2f, 0f, -2f), FrameBeside(0f, -2f, -2f), FrameBeside(0f, 2f, -2f) };
+            Show(m_railSide, !same[0] && !down[0]);
+            Show(m_railBack, !same[1] && !down[1]);
+            Show(m_railFront, !same[2] && !down[2]);
+            Show(m_guardSide, top && !same[0] && !up[0]);
+            Show(m_guardBack, top && !same[1] && !up[1]);
+            Show(m_guardFront, top && !same[2] && !up[2]);
             string hidden = "";
             for (int i = 0; i < m_posts.Length; i++)
             {
                 bool post = !Yields(i, false);
-                bool guard = top && !Yields(i, true);
+                bool guard = top && !Yields(i, true) && !PostAbove(i);
                 Show(m_posts[i], post);
                 Show(m_guardPosts[i], guard);
                 if (!post) hidden += " post " + i;
                 if (top && !guard) hidden += " guard post " + i;
             }
-            Plugin.Debug("Scaffold at " + transform.position + ": " + (top ? "top, guard rail" : "frame on top") + (deckSide ? ", frame at the deck side" : "") + (back ? ", frame at the back" : "") + (front ? ", frame at the front" : "") + (hidden.Length > 0 ? ", hidden:" + hidden : ""));
+            string[] sides = { "deck side", "back", "front" };
+            string beside = "";
+            for (int k = 0; k < 3; k++)
+            {
+                if (same[k]) beside += ", frame at the " + sides[k];
+                if (up[k]) beside += ", frame a level up at the " + sides[k];
+                if (down[k]) beside += ", frame a level down at the " + sides[k];
+            }
+            Plugin.Debug("Scaffold at " + transform.position + " (middle " + Middle + ", turned " + transform.eulerAngles.y.ToString("0.0") + "): " + (top ? "top, guard rail" : "frame on top") + beside + (hidden.Length > 0 ? ", hidden:" + hidden : ""));
         }
 
         private static void Show(UnityEngine.GameObject part, bool on)
