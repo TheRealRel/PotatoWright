@@ -292,6 +292,14 @@ namespace PotatoWright
             InvokeRepeating(nameof(CheckEnds), UnityEngine.Random.Range(3f, 6f), 3f);
         }
 
+        private void OnDestroy()
+        {
+            if (Plugin.TestBuild && m_nview != null && m_nview.GetZDO() != null)
+            {
+                Plugin.Debug("PROBE swag " + name + " object destroyed after " + (Time.time - m_start).ToString("0.0") + " s (parent " + (transform.parent != null ? transform.parent.name : "none") + ")");
+            }
+        }
+
         public void OnPlaced()
         {
             if (!s_pending || m_nview == null || !m_nview.IsValid())
