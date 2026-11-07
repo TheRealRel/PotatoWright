@@ -10,6 +10,8 @@ Building pieces for Valheim that the game doesn't have. The first two: wooden ma
 - Dress them like an armor stand: armor, capes and weapons. Painted armor shows on the body, and comes off with it.
 - Pick a colour before you build, in the panel beside the build menu: natural wood, or any hue with saturation and brightness. The same panel switches the wooden base on or off. To recolour a mannequin you've already built, place one of that colour on it.
 
+![A mannequin in armor holding a crystal battleaxe](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/mannequin-crystal-axe.jpg)
+
 The mannequins sit under one fold-open Mannequins entry in the build menu, opening to Ask's and Embla's stances and emotes, so 80 pieces don't crowd the rest of the menu. With Potato Hammer, the entry sits right under the Potato Wright tab. Every stance has its own icon, drawn in the style of the game's emote icons.
 
 ![The build menu open on the Mannequins entry](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/menu-mannequins.jpg)
