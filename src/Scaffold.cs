@@ -3,7 +3,12 @@
 // the -x side), climbing from the front (+z) at the bottom to the back (-z) at the top; the other half is a plank deck at
 // the top (the game's 2 x 2 wood floor, squeezed to 1 x 2 m). Four corner posts and three rails (the game's wood pole
 // look). A full deck would leave no headroom over the ladder.
-// - Snap points at its eight corners: frames stack and line up side by side.
+// - Snap points at its eight corners: frames stack and line up side by side, by the game's own snapping (and the
+//   player's own snap point choice). The piece's origin is the middle of the deck (ScaffoldPiece.Origin), so aiming at
+//   a deck stacks the next frame straight on it. (test-g's own placing of a frame aimed at a frame is gone: it fought
+//   the game's snapping; the user: "snap points were broken".)
+// - Its shape follows the frames around it (ScaffoldMark): one post where frames meet, open sides between frames, a
+//   guard rail on the top frame only.
 // - No support or weather wear (m_noSupportWear and m_noRoofWear off, and Steady for SwagWear on ships). It falls when
 //   what it stands on is removed (the user, test-c: "the scaffold should crash down when the bottom is removed"):
 //   ScaffoldMark checks under its feet after a piece near it is destroyed.
@@ -28,6 +33,9 @@ namespace PotatoWright
         // of the ladder"; the ladder's own side rail is that side's brace), and the deck's front inner corner beside the
         // ladder's foot (outside its steps), which holds the inner ends of the front rail, the front top beam and the beam
         // under the deck's inner edge. Part names post_<i> and guard_post_<i> follow this order (ScaffoldMark).
+        // Where the frame's own middle (x and z) sits from the piece's origin, which is the middle of the deck.
+        internal static readonly Vector3 Origin = new Vector3(-0.5f, 0f, 0f);
+
         internal static readonly Vector2[] PostSpots =
         {
             new Vector2(1f - Post / 2f, 1f - Post / 2f), new Vector2(1f - Post / 2f, -(1f - Post / 2f)),
@@ -150,6 +158,16 @@ namespace PotatoWright
                     }
                 }
             }
+            // The piece's origin at the middle of the deck, not of the frame (the user, test-f and test-g: stacking was
+            // frustrating). The game snaps a piece only when its own snap point comes within 0.5 m of another's
+            // (Player.FindClosestSnapPoints), and the ghost's origin sits where the player aims; a frame lines up on top
+            // of another only when the aim is within 0.5 m of that frame's origin raised 2 m. With the origin at the
+            // frame's middle that was the deck's inner edge over the ladder; at the deck's middle, aiming anywhere on the
+            // deck stacks it straight. Everything (ladder, frame, snap points) moves by Origin.
+            foreach (Transform child in prefab.transform)
+            {
+                child.localPosition += Origin;
+            }
             WearNTear wear = prefab.GetComponent<WearNTear>();
             if (wear)
             {
@@ -261,17 +279,20 @@ namespace PotatoWright
 
         private bool Live => m_listed && this != null && m_nview != null && m_nview.IsValid();
 
+        // The frame's own middle at its foot (the piece's origin is the middle of the deck: ScaffoldPiece.Origin).
+        private UnityEngine.Vector3 Middle => transform.TransformPoint(ScaffoldPiece.Origin);
+
         // The frames within reach of one that came or went take their shape again (and it too, when it came).
         private static void ReshapeNear(ScaffoldMark changed, bool self)
         {
-            UnityEngine.Vector3 at = changed.transform.position;
+            UnityEngine.Vector3 at = changed.Middle;
             foreach (ScaffoldMark s in s_all)
             {
                 if (s == null || (!self && s == changed) || !s.Live)
                 {
                     continue;
                 }
-                UnityEngine.Vector3 d = s.transform.position - at;
+                UnityEngine.Vector3 d = s.Middle - at;
                 if (UnityEngine.Mathf.Abs(d.x) < 3f && UnityEngine.Mathf.Abs(d.z) < 3f && UnityEngine.Mathf.Abs(d.y) < 2.5f)
                 {
                     s.Reshape();
@@ -280,7 +301,7 @@ namespace PotatoWright
         }
 
         // Where another frame stands, in this frame's own axes.
-        private UnityEngine.Vector3 Local(ScaffoldMark other) => transform.InverseTransformDirection(other.transform.position - transform.position);
+        private UnityEngine.Vector3 Local(ScaffoldMark other) => transform.InverseTransformDirection(other.Middle - Middle);
 
         // Turned by a multiple of 90 degrees from this frame.
         private bool Square(ScaffoldMark other)
@@ -311,7 +332,7 @@ namespace PotatoWright
             return false;
         }
 
-        private UnityEngine.Vector3 Spot(int i) => transform.TransformPoint(new UnityEngine.Vector3(ScaffoldPiece.PostSpots[i].x, 0f, ScaffoldPiece.PostSpots[i].y));
+        private UnityEngine.Vector3 Spot(int i) => transform.TransformPoint(ScaffoldPiece.Origin + new UnityEngine.Vector3(ScaffoldPiece.PostSpots[i].x, 0f, ScaffoldPiece.PostSpots[i].y));
 
         // Another frame on the same level, with a lower ZDOID, has a post beside this one's post i (guard: only frames
         // with no frame on top, whose guard posts show).
@@ -322,7 +343,7 @@ namespace PotatoWright
             foreach (ScaffoldMark o in s_all)
             {
                 if (o == this || o == null || !o.Live) continue;
-                UnityEngine.Vector3 apart = o.transform.position - transform.position;
+                UnityEngine.Vector3 apart = o.Middle - Middle;
                 if (UnityEngine.Mathf.Abs(apart.y) > Level || UnityEngine.Mathf.Abs(apart.x) > 3f || UnityEngine.Mathf.Abs(apart.z) > 3f) continue;
                 ZDOID other = o.m_nview.GetZDO().m_uid;
                 if (other.UserID > id.UserID || (other.UserID == id.UserID && other.ID >= id.ID)) continue;
@@ -365,23 +386,6 @@ namespace PotatoWright
             if (part != null && part.activeSelf != on) part.SetActive(on);
         }
 
-        // The live frame whose collider this is, if any.
-        internal static ScaffoldMark Of(UnityEngine.Collider c)
-        {
-            ScaffoldMark s = c != null ? c.GetComponentInParent<ScaffoldMark>() : null;
-            return s != null && s.Live ? s : null;
-        }
-
-        // A frame already stands there.
-        internal static bool Taken(UnityEngine.Vector3 at)
-        {
-            foreach (ScaffoldMark s in s_all)
-            {
-                if (s != null && s.Live && (s.transform.position - at).sqrMagnitude < 0.04f) return true;
-            }
-            return false;
-        }
-
         // A piece near was destroyed: the frames standing within reach above it look under their feet.
         internal static void PieceGone(WearNTear gone)
         {
@@ -397,7 +401,7 @@ namespace PotatoWright
                 {
                     continue;
                 }
-                UnityEngine.Vector3 d = s.transform.position - at;
+                UnityEngine.Vector3 d = s.Middle - at;
                 if (UnityEngine.Mathf.Abs(d.x) > 5f || UnityEngine.Mathf.Abs(d.z) > 5f || d.y < -1f || d.y > 6f)
                 {
                     continue;
@@ -426,7 +430,7 @@ namespace PotatoWright
             }
             // Its feet: the 2 x 2 m base, from 0.25 m below to 0.1 m above, kept 5 cm in from the edges so frames beside
             // it don't count.
-            UnityEngine.Vector3 center = transform.TransformPoint(new UnityEngine.Vector3(0f, -0.075f, 0f));
+            UnityEngine.Vector3 center = transform.TransformPoint(ScaffoldPiece.Origin + new UnityEngine.Vector3(0f, -0.075f, 0f));
             int n = UnityEngine.Physics.OverlapBoxNonAlloc(center, new UnityEngine.Vector3(0.95f, 0.175f, 0.95f), s_hits, transform.rotation, s_mask, UnityEngine.QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
             {
@@ -440,59 +444,6 @@ namespace PotatoWright
             m_falling = true;
             Plugin.Debug("Scaffold at " + transform.position + ": nothing under its feet, falls");
             wear.Remove();
-        }
-    }
-
-    // Placing a scaffold aimed at a scaffold (the user, test-f: frames placed on top landed one frame over, beside and
-    // above, so they neither stacked nor met side by side, and the shape never changed; log 2026-11-07 01:07: offsets of
-    // exactly 2 m sideways and 2 m up). The game snaps the nearest pair of corner snap points, which on a 2 m frame is
-    // often a corner one frame over. Instead the frame goes where the aim says: on a top face in the top half (deck, top
-    // beam or guard rail) straight on top; on an underside at the bottom straight under; anything else (a side, a ladder
-    // step, a mid rail) the frame beside it, on the same level (the side
-    // nearest the aimed point, so a rail's inner face counts for its own side). It is turned like the aimed frame plus the
-    // player's turn rounded to a quarter, so the ladder can face any side. Holding the game's no-snap key leaves the game's
-    // own placing. A place another frame already holds is refused.
-    [HarmonyLib.HarmonyPatch(typeof(Player), "UpdatePlacementGhost")]
-    internal static class ScaffoldPlacing
-    {
-        private static string s_last;
-
-        private static void Postfix(Player __instance)
-        {
-            if (__instance != Player.m_localPlayer || __instance.m_placementGhost == null || GameCamera.instance == null) return;
-            UnityEngine.GameObject ghost = __instance.m_placementGhost;
-            if (!ghost.activeSelf || ghost.GetComponent<ScaffoldMark>() == null) return;
-            if (ZInput.GetButton("AltPlace") || ZInput.GetButton("JoyAltKeys")) return;
-            UnityEngine.Transform cam = GameCamera.instance.transform;
-            if (!UnityEngine.Physics.Raycast(cam.position, cam.forward, out UnityEngine.RaycastHit hit, 50f, __instance.m_placeRayMask)) return;
-            ScaffoldMark target = ScaffoldMark.Of(hit.collider);
-            if (target == null) return;
-            UnityEngine.Transform t = target.transform;
-            UnityEngine.Vector3 n = t.InverseTransformDirection(hit.normal), p = t.InverseTransformPoint(hit.point);
-            UnityEngine.Vector3 slot;
-            string where;
-            if (n.y > 0.7f && p.y > 1.5f) { slot = new UnityEngine.Vector3(0f, 2f, 0f); where = "on top"; }
-            else if (n.y < -0.7f && p.y < 0.5f) { slot = new UnityEngine.Vector3(0f, -2f, 0f); where = "under"; }
-            else if (UnityEngine.Mathf.Abs(p.x) >= UnityEngine.Mathf.Abs(p.z)) { slot = new UnityEngine.Vector3(p.x >= 0f ? 2f : -2f, 0f, 0f); where = p.x >= 0f ? "beside, deck side" : "beside, ladder side"; }
-            else { slot = new UnityEngine.Vector3(0f, 0f, p.z >= 0f ? 2f : -2f); where = p.z >= 0f ? "beside, front" : "beside, back"; }
-            float turn = ghost.transform.eulerAngles.y - t.eulerAngles.y;
-            float quarter = UnityEngine.Mathf.Round(turn / 90f) * 90f;
-            UnityEngine.Vector3 at = t.TransformPoint(slot);
-            ghost.transform.position = at;
-            ghost.transform.rotation = t.rotation * UnityEngine.Quaternion.Euler(0f, quarter, 0f);
-            if (__instance.m_placementStatus == Player.PlacementStatus.Valid)
-            {
-                if (ScaffoldMark.Taken(at)) __instance.m_placementStatus = Player.PlacementStatus.Invalid;
-                else if (Location.IsInsideNoBuildLocation(at)) __instance.m_placementStatus = Player.PlacementStatus.NoBuildZone;
-                else if (!PrivateArea.CheckAccess(at, 0f, false, false)) __instance.m_placementStatus = Player.PlacementStatus.PrivateZone;
-                __instance.SetPlacementGhostValid(__instance.m_placementStatus == Player.PlacementStatus.Valid);
-            }
-            string now = where + " " + target.transform.position + ", turned " + quarter + ", status " + __instance.m_placementStatus;
-            if (now != s_last)
-            {
-                s_last = now;
-                Plugin.Debug("Scaffold ghost: " + now);
-            }
         }
     }
 

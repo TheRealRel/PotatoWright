@@ -1,10 +1,10 @@
 // The pieces hung on a rope or chain (the user's choices, 2026-11-06), placed by aiming at a placed rope or chain:
-// - Lanterns: five of the game's lanterns, each on a short iron chain with one real light that switches off at a
+// - Lanterns: three of the game's lanterns, each on a short iron chain with one real light that switches off at a
 //   distance (LightLod, like every lamp in the game; "Lanterns light, strings glow"): the Dvergr lantern (the item's
 //   body, lit material, piece_dvergr_lantern's light and glow), the hooded lantern (piece_hoodedlantern's model, its
-//   beam turned out from the rope and tipped down), the Deep North lantern (Lantern_DN's model and light), the snow
-//   lantern (piece_snowlantern's model, candle flame and light) and the lava lantern (piece_Lavalantern's model with its
-//   moving lava and light). Test-b: "The lantern was a big win. Multiple types would be great."
+//   beam turned out from the rope and tipped down) and the Deep North lantern (Lantern_DN's model and light). Test-b:
+//   "The lantern was a big win. Multiple types would be great." The snow and lava lanterns of test-c to test-g went
+//   (the user, test-g: "They are not a good match").
 // - Hanging brazier: the game's hanging brazier (piece_brazierceiling01) as it is, burning coal, warming and smoking;
 //   hung by the top of its chains (the user's choice: "Like the game's").
 // - Drying herbs: three thistles and two dandelions tied at the stems, heads down.
@@ -29,7 +29,7 @@ namespace PotatoWright
 {
     internal static class HangPieces
     {
-        internal const int Lantern = 0, Fish = 1, Herbs = 2, Bunting = 3, Fey = 4, LanternHooded = 5, LanternDeepNorth = 6, LanternSnow = 7, LanternLava = 8, Brazier = 9;
+        internal const int Lantern = 0, Fish = 1, Herbs = 2, Bunting = 3, Fey = 4, LanternHooded = 5, LanternDeepNorth = 6, Brazier = 9;
 
         private const float Chain = 0.16f;
 
@@ -113,8 +113,6 @@ namespace PotatoWright
             // game's Dvergr wall lantern takes its lantern and a chain.
             AddSpot("PotatoWright_HangLanternDeepNorth", "piece_potatowright_hang_lantern_deepnorth", LanternDeepNorth, "forge",
                 new[] { new RequirementConfig("Lantern_DN", 1, 0, true), new RequirementConfig("Chain", 1, 0, true) });
-            AddCopied("PotatoWright_HangLanternSnow", "piece_potatowright_hang_lantern_snow", LanternSnow, "piece_snowlantern");
-            AddCopied("PotatoWright_HangLanternLava", "piece_potatowright_hang_lantern_lava", LanternLava, "piece_Lavalantern");
             AddBrazier();
             AddSpot("PotatoWright_HangHerbs", "piece_potatowright_hang_herbs", Herbs, "piece_workbench", new[] { new RequirementConfig("Thistle", 1, 0, true), new RequirementConfig("Dandelion", 2, 0, true) });
             AddSpot("PotatoWright_HangBunting", "piece_potatowright_bunting", Bunting, "piece_workbench", new[] { new RequirementConfig("LeatherScraps", 2, 0, true), new RequirementConfig("Raspberry", 2, 0, true) });
@@ -602,9 +600,9 @@ namespace PotatoWright
                     MeshFilter body = item ? item.transform.Find("default")?.GetComponent<MeshFilter>() : null;
                     Material lit = PrefabManager.Cache.GetPrefab<Material>("DvergrTownLantern_mat");
                     if (body && lit) MeshPart(holder, "body", body.sharedMesh, lit, Vector3.zero, Quaternion.identity, Vector3.one);
-                    GameObject l = Copy("piece_dvergr_lantern", "New/Point Light", holder.transform, false);
+                    GameObject l = Copy("piece_dvergr_lantern", "New/Point Light", holder.transform);
                     if (l) l.transform.localPosition = new Vector3(0f, 0.253f, 0f);
-                    GameObject f = Copy("piece_dvergr_lantern", "New/flare", holder.transform, false);
+                    GameObject f = Copy("piece_dvergr_lantern", "New/flare", holder.transform);
                     if (f) f.transform.localPosition = new Vector3(0f, 0.223f, 0f);
                     light = l ? l.GetComponent<Light>() : null;
                     break;
@@ -613,7 +611,7 @@ namespace PotatoWright
                 {
                     // piece_hoodedlantern's lantern; its beam (the spot light) turned out from the rope and tipped down,
                     // its small point light left out (one light).
-                    GameObject lamp = Copy("piece_hoodedlantern", "default", holder.transform, false);
+                    GameObject lamp = Copy("piece_hoodedlantern", "default", holder.transform);
                     if (lamp)
                     {
                         foreach (Collider c in lamp.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
@@ -633,7 +631,7 @@ namespace PotatoWright
                 {
                     // The Deep North lantern item's lit model with its light and glow.
                     scale = 1f;
-                    GameObject lamp = Copy("Lantern_DN", "attach_back/default", holder.transform, false);
+                    GameObject lamp = Copy("Lantern_DN", "attach_back/default", holder.transform);
                     if (lamp)
                     {
                         Transform sfx = lamp.transform.Find("SFX");
@@ -643,24 +641,6 @@ namespace PotatoWright
                         Transform flare = lamp.transform.Find("flare");
                         if (flare) flare.gameObject.SetActive(true);
                     }
-                    break;
-                }
-                case LanternSnow:
-                {
-                    // piece_snowlantern: the snow globe (its own detail levels), the candle flame and its light.
-                    scale = 1f;
-                    Copy("piece_snowlantern", "New", holder.transform, true);
-                    GameObject fire = Copy("piece_snowlantern", "_enabled", holder.transform, true);
-                    light = fire ? fire.GetComponentInChildren<Light>(true) : null;
-                    break;
-                }
-                case LanternLava:
-                {
-                    // piece_Lavalantern: the lantern with its moving lava and bubbles (its own detail levels) and its light.
-                    scale = 0.8f;
-                    Copy("piece_Lavalantern", "new", holder.transform, true);
-                    GameObject l = Copy("piece_Lavalantern", "Point light", holder.transform, true);
-                    light = l ? l.GetComponent<Light>() : null;
                     break;
                 }
             }
@@ -710,8 +690,8 @@ namespace PotatoWright
             return any ? top : 0.6f;
         }
 
-        // A copy of a part of a game prefab under parent: with its own place in the prefab (keep) or at parent's origin.
-        private static GameObject Copy(string prefab, string path, Transform parent, bool keep)
+        // A copy of a part of a game prefab under parent, at parent's origin.
+        private static GameObject Copy(string prefab, string path, Transform parent)
         {
             GameObject source = PrefabManager.Instance.GetPrefab(prefab);
             Transform part = source ? source.transform.Find(path) : null;
@@ -722,18 +702,9 @@ namespace PotatoWright
             }
             GameObject copy = Object.Instantiate(part.gameObject, parent, false);
             copy.name = part.name;
-            if (keep)
-            {
-                copy.transform.localPosition = part.localPosition;
-                copy.transform.localRotation = part.localRotation;
-                copy.transform.localScale = part.localScale;
-            }
-            else
-            {
-                copy.transform.localPosition = Vector3.zero;
-                copy.transform.localRotation = Quaternion.identity;
-                copy.transform.localScale = Vector3.one;
-            }
+            copy.transform.localPosition = Vector3.zero;
+            copy.transform.localRotation = Quaternion.identity;
+            copy.transform.localScale = Vector3.one;
             return copy;
         }
 
