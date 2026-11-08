@@ -342,7 +342,22 @@ namespace PotatoWright
             // ship, so it hangs straight for the deck however the ship rolls when it loads).
             Vector3 down = Vector3.down;
             List<Vector3> points = Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 2f), 8, 130));
-            if (!GUIManager.IsHeadless())
+            // The placing preview rebuilds whenever the aim moves (every frame while aiming): beyond PreviewFull it draws
+            // the far versions only (test-l: the full look took 6.0-6.2 ms a build for a 33 m black metal chain and 3.6 ms
+            // for a 30 m rope, growing with length). Placed swags always get the full look.
+            bool simple = !placed && end.magnitude > PreviewFull;
+            if (!GUIManager.IsHeadless() && simple)
+            {
+                if (m_kind == 0)
+                {
+                    TubeObject(m_visual, "rope_far", Tube(Resample(points, FarSpacing), FarSides, false));
+                }
+                else
+                {
+                    Line(m_visual, points, SwagPieces.FlatChain[m_kind], ChainWidth);
+                }
+            }
+            else if (!GUIManager.IsHeadless())
             {
                 if (m_kind == 0)
                 {
@@ -429,6 +444,9 @@ namespace PotatoWright
         // A long swag is drawn in sections of about this length, each with its own LODGroup: the game's LOD switch goes by
         // how tall an object's bounds look on screen, so one 48 m rope would keep its close-up mesh from far away.
         internal const float SectionLength = 8f;
+
+        // The longest placing preview drawn with the full look (1.0.0's longest swag).
+        private const float PreviewFull = 16f;
 
         // The rope: the twisted tube up close, a plain six-sided tube beyond (LODGroup, same switch distances as the links),
         // in sections (SectionLength) that join without a seam (one curve, the twist carried on).
