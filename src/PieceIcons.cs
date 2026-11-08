@@ -76,6 +76,13 @@ namespace PotatoWright
                 icon.Apply();
                 Sprite sprite = Sprite.Create(icon, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f));
                 sprite.name = name + "_icon";
+                if (Plugin.TestBuild)
+                {
+                    // TEST ONLY: the icons for the mod page (BepInEx/PotatoWright-test-icons).
+                    string dir = System.IO.Path.Combine(BepInEx.Paths.BepInExRootPath, "PotatoWright-test-icons");
+                    System.IO.Directory.CreateDirectory(dir);
+                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + ".png"), icon.EncodeToPNG());
+                }
                 return sprite;
             }
             catch (Exception ex)

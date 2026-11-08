@@ -30,7 +30,7 @@ namespace PotatoWright
         private void Awake()
         {
             Log = Logger;
-            SwagPieces.Longest = Config.Bind("Ropes and chains", "Ropes and chains: longest", false, new BepInEx.Configuration.ConfigDescription(
+            SwagPieces.Longest = Config.Bind("1 - Ropes and chains", "Ropes and chains: longest", false, new BepInEx.Configuration.ConfigDescription(
                 "Ropes and chains reach up to 64 m instead of 48 m. 64 m is the longest that still shows for every player at either end, whatever their simulation distance (the game only creates a rope while the area of its first end is loaded around the player).",
                 null, new ConfigurationManagerAttributes { IsAdminOnly = true }));
             AddTranslations();
