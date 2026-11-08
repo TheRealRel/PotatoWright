@@ -16,8 +16,6 @@ Building pieces for Valheim that the game doesn't have: wooden mannequins to dre
 
 The mannequins sit under one fold-open Mannequins entry in the build menu, opening to Ask's and Embla's stances and emotes, so 80 pieces don't crowd the rest of the menu. With Potato Hammer, the entry sits right under the Potato Wright tab. Every stance has its own icon, drawn in the style of the game's emote icons.
 
-![The build menu open on the Mannequins entry](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/menu-mannequins.jpg)
-
 ![](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/icon-rope.png) ![](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/icon-chain-iron.png) ![](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/icon-chain-bronze.png) ![](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/icon-chain-blackmetal.png)
 
 **Ropes and chains** hang between any two points you choose, for rigging, fences, gates, a hall's beams or a ship. A twisted three-strand rope, and chains of real links in iron, bronze and spiked black metal.
