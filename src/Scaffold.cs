@@ -771,6 +771,18 @@ namespace PotatoWright
                     return;
                 }
             }
+            // A leg on something holds it: a frame resting only on the edge beam of the frame below (a stair turned 90
+            // degrees at the lower frame's deck side) has nothing inside the base box above (test-k: the fourth step fell
+            // while the third stood on its legs). The same check that shows the legs.
+            for (int i = 0; i < m_posts.Length; i++)
+            {
+                if (StandsOnSomething(i, out string under))
+                {
+                    Plugin.Debug("Scaffold at " + transform.position + " stands on " + under + " (leg " + i + ")");
+                    Reshape();
+                    return;
+                }
+            }
             // Long legs hold it (the user, test-j: "Yes, legs hold it up").
             for (int i = 0; i < m_posts.Length; i++)
             {

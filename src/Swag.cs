@@ -28,7 +28,15 @@ namespace PotatoWright
 {
     internal static class SwagPieces
     {
-        internal const float MaxLength = 16f, MinLength = 0.5f;
+        // Longest: 48 m (the user, 2026-11-07: "the chains/rope from Wright need to be longer by default (48m)"), or 64 m
+        // with the server's setting ("a toggle to the longest possible while still retaining it's look"). A swag is one
+        // object at its first end, and the game creates objects only in the zones near the player
+        // (ZDOMan.FindSectorObjects): at the lowest simulation distance (SimulationDistance level 0: near 1, classic) the
+        // player's zone and the ring round it. Zones are 64 m (ZoneSystem.c_ZoneSize), so up to 64 m a swag is always there
+        // for a player at either end, whatever their setting; a longer one could vanish for them at its far end.
+        internal const float MinLength = 0.5f, DefaultMax = 48f, LongestMax = 64f;
+        internal static BepInEx.Configuration.ConfigEntry<bool> Longest;
+        internal static float MaxLength => (Longest != null && Longest.Value) ? LongestMax : DefaultMax;
 
         internal static readonly Color[] FlatTint =
         {
@@ -302,7 +310,21 @@ namespace PotatoWright
             Build(end, sag, false);
         }
 
+        // TEST ONLY: how long building takes (the placing preview rebuilds while the aim moves), once a second at most.
+        private static float s_lastTimeLog;
+
         private void Build(Vector3 end, float sag, bool placed)
+        {
+            System.Diagnostics.Stopwatch watch = Plugin.TestBuild ? System.Diagnostics.Stopwatch.StartNew() : null;
+            BuildNow(end, sag, placed);
+            if (watch != null && (placed || Time.unscaledTime - s_lastTimeLog > 1f))
+            {
+                s_lastTimeLog = Time.unscaledTime;
+                Plugin.Debug("Swag " + (placed ? "built" : "preview") + ": kind " + m_kind + ", " + end.magnitude.ToString("0.0") + " m, " + watch.Elapsed.TotalMilliseconds.ToString("0.00") + " ms");
+            }
+        }
+
+        private void BuildNow(Vector3 end, float sag, bool placed)
         {
             m_end = end;
             m_sag = sag;
@@ -319,12 +341,12 @@ namespace PotatoWright
             // The swag hangs along its own down: the piece is always placed upright (world up on land; the ship's up on a
             // ship, so it hangs straight for the deck however the ship rolls when it loads).
             Vector3 down = Vector3.down;
-            List<Vector3> points = Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 2f), 8, 40));
+            List<Vector3> points = Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 2f), 8, 130));
             if (!GUIManager.IsHeadless())
             {
                 if (m_kind == 0)
                 {
-                    RopeWithPlainFar(m_visual, Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 160)));
+                    RopeWithPlainFar(m_visual, Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 520)));
                 }
                 else if (!m_links)
                 {
@@ -332,7 +354,7 @@ namespace PotatoWright
                 }
                 else
                 {
-                    LinksWithFlatFar(m_visual, Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 160)), points);
+                    LinksWithFlatFar(m_visual, Points(Vector3.zero, end, down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 520)), points);
                 }
             }
             m_invalid = false;
@@ -404,18 +426,51 @@ namespace PotatoWright
             return line;
         }
 
-        // The rope: the twisted tube up close, a plain six-sided tube beyond (LODGroup, same switch distances as the links).
+        // A long swag is drawn in sections of about this length, each with its own LODGroup: the game's LOD switch goes by
+        // how tall an object's bounds look on screen, so one 48 m rope would keep its close-up mesh from far away.
+        internal const float SectionLength = 8f;
+
+        // The rope: the twisted tube up close, a plain six-sided tube beyond (LODGroup, same switch distances as the links),
+        // in sections (SectionLength) that join without a seam (one curve, the twist carried on).
         private static void RopeWithPlainFar(GameObject parent, List<Vector3> curve)
         {
-            Renderer near = TubeObject(parent, "rope", Tube(Resample(curve, Spacing), RopeSides, true));
-            Renderer far = TubeObject(parent, "rope_far", Tube(Resample(curve, FarSpacing), FarSides, false));
-            LODGroup lod = parent.AddComponent<LODGroup>();
-            lod.SetLODs(new[]
+            List<Vector3> fine = Resample(curve, Spacing), coarse = Resample(curve, FarSpacing);
+            int sections = Mathf.Max(1, Mathf.CeilToInt(Length(curve) / SectionLength));
+            for (int c = 0; c < sections; c++)
             {
-                new LOD(0.04f, new Renderer[] { near }),
-                new LOD(0.004f, new Renderer[] { far }),
-            });
-            lod.RecalculateBounds();
+                GameObject section = Section(parent, c);
+                Renderer near = TubeObject(section, "rope", TubeRange(fine, Cut(fine, c, sections), Cut(fine, c + 1, sections), RopeSides, true, RopeRadius));
+                Renderer far = TubeObject(section, "rope_far", TubeRange(coarse, Cut(coarse, c, sections), Cut(coarse, c + 1, sections), FarSides, false, RopeRadius));
+                LODGroup lod = section.AddComponent<LODGroup>();
+                lod.SetLODs(new[]
+                {
+                    new LOD(0.04f, new Renderer[] { near }),
+                    new LOD(0.004f, new Renderer[] { far }),
+                });
+                lod.RecalculateBounds();
+            }
+        }
+
+        private static GameObject Section(GameObject parent, int index)
+        {
+            GameObject go = new GameObject("section_" + index);
+            go.transform.SetParent(parent.transform, false);
+            go.layer = parent.layer;
+            return go;
+        }
+
+        // Where section c of n starts in a list of evenly spaced points (the last point of one section is the first of the
+        // next).
+        private static int Cut(List<Vector3> points, int c, int n)
+        {
+            return Mathf.RoundToInt((float)c * (points.Count - 1) / n);
+        }
+
+        private static float Length(List<Vector3> points)
+        {
+            float total = 0f;
+            for (int i = 1; i < points.Count; i++) total += Vector3.Distance(points[i - 1], points[i]);
+            return total;
         }
 
         private static Renderer TubeObject(GameObject parent, string name, Mesh mesh)
@@ -429,12 +484,13 @@ namespace PotatoWright
             return r;
         }
 
-        // Points every `spacing` metres along the curve (PotatoFarmer's Post.Resample, 600 rings at most).
+        // Points every `spacing` metres along the curve (PotatoFarmer's Post.Resample; 3300 at most, so a 64 m rope keeps
+        // its 2 cm rings).
         internal static List<Vector3> Resample(List<Vector3> points, float spacing)
         {
             float total = 0f;
             for (int i = 1; i < points.Count; i++) total += Vector3.Distance(points[i - 1], points[i]);
-            int count = Mathf.Clamp(Mathf.CeilToInt(total / spacing), 2, 600) + 1;
+            int count = Mathf.Clamp(Mathf.CeilToInt(total / spacing), 2, 3300) + 1;
             List<Vector3> result = new List<Vector3>(count);
             int seg = 1;
             float segStart = 0f, segLength = Vector3.Distance(points[0], points[1]);
@@ -456,23 +512,32 @@ namespace PotatoWright
         // swells over each of the three strands and dips into the grooves between them, twisting along the rope.
         internal static Mesh Tube(List<Vector3> points, int sides, bool strands, float radius = RopeRadius)
         {
-            int rings = points.Count;
+            return TubeRange(points, 0, points.Count - 1, sides, strands, radius);
+        }
+
+        // The tube through points[from..to] of a longer curve: each ring faces along the whole curve and the twist runs on
+        // from the start of the curve, so sections side by side join without a seam.
+        internal static Mesh TubeRange(List<Vector3> all, int from, int to, int sides, bool strands, float radius)
+        {
+            int rings = to - from + 1;
             Vector3[] vertices = new Vector3[rings * (sides + 1)];
             Vector3[] normals = new Vector3[vertices.Length];
             Vector2[] uvs = new Vector2[vertices.Length];
             int[] triangles = new int[(rings - 1) * sides * 6];
             float along = 0f;
-            for (int i = 0; i < rings; i++)
+            for (int i = 1; i <= from; i++) along += Vector3.Distance(all[i], all[i - 1]);
+            for (int r = 0; r < rings; r++)
             {
-                Vector3 dir = (i < rings - 1 ? points[i + 1] - points[i] : points[i] - points[i - 1]).normalized;
-                if (i > 0) along += Vector3.Distance(points[i], points[i - 1]);
+                int i = from + r;
+                Vector3 dir = (i < all.Count - 1 ? all[i + 1] - all[i] : all[i] - all[i - 1]).normalized;
+                if (r > 0) along += Vector3.Distance(all[i], all[i - 1]);
                 Vector3 a = Vector3.Cross(dir, Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.95f ? Vector3.right : Vector3.up).normalized;
                 Vector3 b = Vector3.Cross(dir, a);
                 for (int k = 0; k <= sides; k++)
                 {
                     float angle = k * Mathf.PI * 2f / sides;
                     Vector3 n = a * Mathf.Cos(angle) + b * Mathf.Sin(angle);
-                    int v = i * (sides + 1) + k;
+                    int v = r * (sides + 1) + k;
                     float swell = 1f;
                     if (strands)
                     {
@@ -483,7 +548,7 @@ namespace PotatoWright
                     {
                         swell = 0.92f;
                     }
-                    vertices[v] = points[i] + n * (radius * swell);
+                    vertices[v] = all[i] + n * (radius * swell);
                     normals[v] = n;
                     uvs[v] = new Vector2(k / (float)sides, along / Twist);
                 }
@@ -508,28 +573,47 @@ namespace PotatoWright
             return mesh;
         }
 
-        // 3D links along the curve, and the flat chain beyond close range (LODGroup).
+        // 3D links along the curve, and the flat chain beyond close range (LODGroup), in sections (SectionLength); the links
+        // keep their spacing and quarter turns across the sections.
         private void LinksWithFlatFar(GameObject parent, List<Vector3> fine, List<Vector3> coarse)
         {
-            GameObject go = new GameObject("links");
-            go.transform.SetParent(parent.transform, false);
-            go.layer = parent.layer;
-            Mesh mesh = LinkMesh(fine, m_kind == 3);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            MeshRenderer r = go.AddComponent<MeshRenderer>();
-            if (SwagPieces.LinkMetal[m_kind]) r.sharedMaterial = SwagPieces.LinkMetal[m_kind];
-            LineRenderer far = Line(parent, coarse, SwagPieces.FlatChain[m_kind], ChainWidth);
-            LODGroup lod = parent.AddComponent<LODGroup>();
-            lod.SetLODs(new[]
+            int links = LinkCount(fine);
+            int sections = Mathf.Max(1, Mathf.CeilToInt(Length(fine) / SectionLength));
+            for (int c = 0; c < sections; c++)
             {
-                new LOD(0.04f, new Renderer[] { r }),
-                new LOD(0.004f, new Renderer[] { far }),
-            });
-            lod.RecalculateBounds();
+                GameObject section = Section(parent, c);
+                GameObject go = new GameObject("links");
+                go.transform.SetParent(section.transform, false);
+                go.layer = section.layer;
+                int first = Mathf.RoundToInt((float)c * (links + 1) / sections), last = Mathf.RoundToInt((float)(c + 1) * (links + 1) / sections) - 1;
+                go.AddComponent<MeshFilter>().sharedMesh = LinkMesh(fine, m_kind == 3, first, last);
+                MeshRenderer r = go.AddComponent<MeshRenderer>();
+                if (SwagPieces.LinkMetal[m_kind]) r.sharedMaterial = SwagPieces.LinkMetal[m_kind];
+                LineRenderer far = Line(section, coarse.GetRange(Cut(coarse, c, sections), Cut(coarse, c + 1, sections) - Cut(coarse, c, sections) + 1), SwagPieces.FlatChain[m_kind], ChainWidth);
+                LODGroup lod = section.AddComponent<LODGroup>();
+                lod.SetLODs(new[]
+                {
+                    new LOD(0.04f, new Renderer[] { r }),
+                    new LOD(0.004f, new Renderer[] { far }),
+                });
+                lod.RecalculateBounds();
+            }
         }
 
-        // Interlocking links, each turned a quarter from the one before, a link every inner length along the curve.
+        // How many link pitches fit along the path (links 0 to this number are drawn).
+        private static int LinkCount(List<Vector3> path)
+        {
+            return Mathf.Max(1, Mathf.FloorToInt(Length(path) / (LinkLength - 2f * LinkWire)));
+        }
+
         internal static Mesh LinkMesh(List<Vector3> path, bool spikes)
+        {
+            return LinkMesh(path, spikes, 0, LinkCount(path));
+        }
+
+        // Interlocking links, each turned a quarter from the one before, a link every inner length along the curve (links
+        // first to last of the whole path).
+        internal static Mesh LinkMesh(List<Vector3> path, bool spikes, int first, int last)
         {
             float pitch = LinkLength - 2f * LinkWire;
             List<Vector3> v = new List<Vector3>();
@@ -543,11 +627,10 @@ namespace PotatoWright
                 total += Vector3.Distance(path[i - 1], path[i]);
                 along.Add(total);
             }
-            int links = Mathf.Max(1, Mathf.FloorToInt(total / pitch));
             const int ring = 10, sides = 4;
             float straight = LinkLength - LinkWidth, bend = LinkWidth / 2f - LinkWire;
             int seg = 0;
-            for (int l = 0; l <= links; l++)
+            for (int l = first; l <= last; l++)
             {
                 float d = Mathf.Min(l * pitch, total);
                 while (seg < along.Count - 2 && along[seg + 1] < d) seg++;
@@ -860,7 +943,7 @@ namespace PotatoWright
                 return;
             }
             Piece selected = __instance.InPlaceMode() ? __instance.GetSelectedPiece() : null;
-            if (selected == null || selected.name != s_firstPiece || Hud.IsPieceSelectionVisible() || Vector3.Distance(__instance.transform.position, s_first) > 40f)
+            if (selected == null || selected.name != s_firstPiece || Hud.IsPieceSelectionVisible() || Vector3.Distance(__instance.transform.position, s_first) > SwagPieces.MaxLength + 10f)
             {
                 Cancel(__instance, true);
                 return;
@@ -912,7 +995,7 @@ namespace PotatoWright
             __instance.UpdatePlacementGhost(true);
             if (s_length > SwagPieces.MaxLength)
             {
-                __instance.Message(MessageHud.MessageType.Center, "$potatowright_swag_toolong");
+                __instance.Message(MessageHud.MessageType.Center, Localization.instance.Localize("$potatowright_swag_toolong") + " " + SwagPieces.MaxLength.ToString("0") + " m");
                 __result = false;
                 return false;
             }

@@ -30,6 +30,9 @@ namespace PotatoWright
         private void Awake()
         {
             Log = Logger;
+            SwagPieces.Longest = Config.Bind("Ropes and chains", "Ropes and chains: longest", false, new BepInEx.Configuration.ConfigDescription(
+                "Ropes and chains reach up to 64 m instead of 48 m. 64 m is the longest that still shows for every player at either end, whatever their simulation distance (the game only creates a rope while the area of its first end is loaded around the player).",
+                null, new ConfigurationManagerAttributes { IsAdminOnly = true }));
             AddTranslations();
             PrefabManager.OnVanillaPrefabsAvailable += AddPieces;
             new Harmony(Id).PatchAll(Assembly.GetExecutingAssembly());
@@ -106,10 +109,10 @@ namespace PotatoWright
                 { "piece_potatowright_swag_iron", "Iron chain" },
                 { "piece_potatowright_swag_bronze", "Bronze chain" },
                 { "piece_potatowright_swag_blackmetal", "Black metal chain" },
-                { "piece_potatowright_swag_description", "Hangs between two points. Click the first end, roll the mouse wheel to set the sag, then click the second end (up to 16 m). It falls if either end loses what it hangs from." },
+                { "piece_potatowright_swag_description", "Hangs between two points. Click the first end, roll the mouse wheel to set the sag, then click the second end (up to 48 m, or 64 m when the server allows it). It falls if either end loses what it hangs from." },
                 { "potatowright_swag_first", "First end set. Wheel: sag. Click the second end." },
                 { "potatowright_swag_cancel", "First end dropped" },
-                { "potatowright_swag_toolong", "Too long: up to 16 m" },
+                { "potatowright_swag_toolong", "Too long: up to" },
                 { "potatowright_swag_tooshort", "Too short" },
                 { "potatowright_swag_sag", "Sag" },
                 { "piece_potatowright_scaffold", "Scaffold" },

@@ -96,7 +96,7 @@ namespace PotatoWright
             m_invalid = false;
             m_visual = new GameObject("string");
             m_visual.transform.SetParent(transform, false);
-            List<Vector3> curve = Swag.Points(Vector3.zero, end, Vector3.down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 160));
+            List<Vector3> curve = Swag.Points(Vector3.zero, end, Vector3.down, sag, Mathf.Clamp(Mathf.CeilToInt(end.magnitude * 8f), 16, 520));
             Renderer shown = null;
             if (!GUIManager.IsHeadless())
             {
@@ -306,7 +306,7 @@ namespace PotatoWright
             }
             else
             {
-                List<Vector3> curve = Swag.Points(Vector3.zero, swag.End, Vector3.down, swag.Sag, Mathf.Clamp(Mathf.CeilToInt(swag.End.magnitude * 20f), 16, 320));
+                List<Vector3> curve = Swag.Points(Vector3.zero, swag.End, Vector3.down, swag.Sag, Mathf.Clamp(Mathf.CeilToInt(swag.End.magnitude * 20f), 16, 1300));
                 Vector3 local = st.InverseTransformPoint(hit.point);
                 int best = 0;
                 float bestD = float.MaxValue;
