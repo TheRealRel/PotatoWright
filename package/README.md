@@ -55,9 +55,9 @@ The mouse wheel works on the hanging while you aim at a rope or chain, and the c
 
 ![A stair of scaffold frames on a hill, the third and sixth steps on long legs](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/scaffold-stair.jpg)
 
-A frame falls when what it stands on is removed and nothing else holds it, and the frames above it follow, down to the next one on long legs.
+A frame falls when what it stands on is removed and nothing else holds it. A frame on long legs stays up, and so does everything resting on it.
 
-![The bottom frame of a stair removed: the frames above it fall until the frame on long legs](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/scaffold-collapse.gif)
+![The bottom frame of a stair removed: the frame above it falls, and the frame on long legs stays up with every step above it](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/scaffold-collapse.gif)
 
 Hangings and scaffolding work on ships with Build On Ship too.
 
