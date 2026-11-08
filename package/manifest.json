@@ -1,8 +1,8 @@
 {
     "name": "PotatoWright",
-    "version_number": "1.0.0",
+    "version_number": "1.1.0",
     "website_url": "https://github.com/TheRealRel/PotatoWright",
-    "description": "Generic building pieces for Valheim: wooden mannequins (Ask and Embla) in every pose and emote, and hanging ropes and chains between any two points.",
+    "description": "Building pieces for Valheim: Ask and Embla mannequins in every pose and emote, ropes and chains, lanterns, a brazier, herbs and bunting to hang on them, and scaffolding.",
     "dependencies": [
         "denikson-BepInExPack_Valheim-5.4.2351",
         "ValheimModding-Jotunn-2.30.2"

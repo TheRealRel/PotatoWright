@@ -21,7 +21,7 @@ namespace PotatoWright
         public const string Id = "potato.wright", Version = "1.1.0";
 
         // Test builds log what they do (Debug); releases don't.
-        internal const bool TestBuild = true;
+        internal const bool TestBuild = false;
 
         internal const string Tag = "[PotatoWright]";
 
@@ -116,7 +116,7 @@ namespace PotatoWright
                 { "potatowright_swag_tooshort", "Too short" },
                 { "potatowright_swag_sag", "Sag" },
                 { "piece_potatowright_scaffold", "Scaffold" },
-                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and line up at their corners, open into each other where they meet, and the top one has a guard rail. A frame falls when what it stands on is removed, and nothing else rests on it." },
+                { "piece_potatowright_scaffold_description", "A wooden frame to build from: a ladder on one side, a plank deck on the other. Frames stack and step up as stairs, line up at their corners and open into each other where they meet; the top one has a guard rail, and every third step up a stair stands on long legs. A frame falls when what it stands on is removed and nothing else holds it." },
                 { "piece_potatowright_hang_lantern", "Hanging lantern: Dvergr" },
                 { "piece_potatowright_hang_lantern_description", "Aim at a rope or chain and click: it hangs there and lights up like the game's lanterns. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_lantern_hooded", "Hanging lantern: hooded" },
@@ -125,14 +125,10 @@ namespace PotatoWright
                 { "piece_potatowright_hang_lantern_deepnorth_description", "The Deep North's iron lamp. Aim at a rope or chain and click. It falls when its rope or chain goes." },
                 { "piece_potatowright_hang_brazier", "Hanging brazier" },
                 { "piece_potatowright_hang_brazier_description", "The game's hanging brazier, hung from a rope or chain by the top of its chains: aim at it and click. Burns coal and warms like the game's. It falls when its rope or chain goes." },
-                { "piece_potatowright_hang_fish", "Drying fish" },
-                { "piece_potatowright_hang_fish_description", "Fish hung by their tails." },
                 { "piece_potatowright_hang_herbs", "Drying herbs" },
                 { "piece_potatowright_hang_herbs_description", "Thistles and dandelions hung heads down. Aim at a rope or chain and click: they hang there. They fall when their rope or chain goes." },
                 { "piece_potatowright_bunting", "Pennant bunting" },
                 { "piece_potatowright_bunting_description", "Flags along a whole rope or chain: aim at it and click. Mouse wheel: many colours, banner cloth or one colour, with or without runes. It falls when its rope or chain goes." },
-                { "piece_potatowright_fey", "Fey lights on a rope" },
-                { "piece_potatowright_fey_description", "Fey lights drifting along a rope." },
                 { "potatowright_hang_aim", "Aim at a rope or chain" },
             });
             LocalizationManager.Instance.GetLocalization().AddTranslation("English", HangPieces.LookTranslations());

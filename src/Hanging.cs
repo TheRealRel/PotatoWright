@@ -112,10 +112,6 @@ namespace PotatoWright
                         if (placed) Plugin.Debug("Bunting " + name + ": " + flags + " flags, look " + style + " (" + HangPieces.LookName(style) + ")");
                     }
                 }
-                else if (HangPieces.FeyTemplate)
-                {
-                    shown = Fey(m_visual, curve, placed);
-                }
             }
             if (shown != null)
             {
@@ -143,44 +139,6 @@ namespace PotatoWright
                     from = i;
                 }
             }
-        }
-
-        // The game's fey light wisps, spawned along the rope instead of the garland's box; their number and rate grow
-        // with the length (the garland is about 4 m). Paused when not drawn.
-        private Renderer Fey(GameObject parent, List<Vector3> curve, bool placed)
-        {
-            GameObject go = Instantiate(HangPieces.FeyTemplate, parent.transform, false);
-            go.name = "fey";
-            go.transform.localPosition = Vector3.zero;
-            go.transform.localRotation = Quaternion.identity;
-            Light light = go.GetComponent<Light>();
-            if (light) DestroyImmediate(light);
-            ParticleSystem ps = go.GetComponent<ParticleSystem>();
-            if (ps == null) return null;
-            List<Vector3> points = Swag.Resample(curve, 0.15f);
-            float length = 0f;
-            for (int i = 1; i < points.Count; i++) length += Vector3.Distance(points[i - 1], points[i]);
-            Mesh mesh = new Mesh { name = "potatowright_fey" };
-            mesh.SetVertices(points);
-            mesh.SetIndices(Enumerable.Range(0, points.Count).ToArray(), MeshTopology.Points, 0);
-            mesh.RecalculateBounds();
-            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            float factor = Mathf.Max(0.3f, length / 4f);
-            ParticleSystem.MainModule main = ps.main;
-            main.maxParticles = Mathf.Max(4, Mathf.RoundToInt(main.maxParticles * factor));
-            main.cullingMode = ParticleSystemCullingMode.Pause;
-            ParticleSystem.EmissionModule emission = ps.emission;
-            emission.rateOverTimeMultiplier = emission.rateOverTimeMultiplier * factor;
-            ParticleSystem.ShapeModule shape = ps.shape;
-            shape.shapeType = ParticleSystemShapeType.Mesh;
-            shape.meshShapeType = ParticleSystemMeshShapeType.Vertex;
-            shape.mesh = mesh;
-            shape.position = Vector3.zero;
-            shape.rotation = Vector3.zero;
-            shape.scale = Vector3.one;
-            ps.Play(true);
-            if (placed) Plugin.Debug("Fey lights " + name + ": " + length.ToString("0.0") + " m, max " + main.maxParticles + ", rate x" + factor.ToString("0.00"));
-            return go.GetComponent<ParticleSystemRenderer>();
         }
 
         internal void SetInvalid(bool invalid)

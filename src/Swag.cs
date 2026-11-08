@@ -310,21 +310,7 @@ namespace PotatoWright
             Build(end, sag, false);
         }
 
-        // TEST ONLY: how long building takes (the placing preview rebuilds while the aim moves), once a second at most.
-        private static float s_lastTimeLog;
-
         private void Build(Vector3 end, float sag, bool placed)
-        {
-            System.Diagnostics.Stopwatch watch = Plugin.TestBuild ? System.Diagnostics.Stopwatch.StartNew() : null;
-            BuildNow(end, sag, placed);
-            if (watch != null && (placed || Time.unscaledTime - s_lastTimeLog > 1f))
-            {
-                s_lastTimeLog = Time.unscaledTime;
-                Plugin.Debug("Swag " + (placed ? "built" : "preview") + ": kind " + m_kind + ", " + end.magnitude.ToString("0.0") + " m, " + watch.Elapsed.TotalMilliseconds.ToString("0.00") + " ms");
-            }
-        }
-
-        private void BuildNow(Vector3 end, float sag, bool placed)
         {
             m_end = end;
             m_sag = sag;

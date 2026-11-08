@@ -56,7 +56,6 @@ namespace PotatoWright
 
         // One material per sheet of flag pictures (plain cloth, banner cloth).
         private static Material[] s_plain, s_cloth;
-        internal static GameObject FeyTemplate;
 
         // The bunting's looks (ZDO PotatoWright_hangStyle; the user, test-e: the mouse wheel cycles "Plain + runes",
         // "Plain, no runes", "Banner + runes", "Banner, no runes" and "One colour"): 0 many colours with runes, 1 banner
@@ -99,12 +98,6 @@ namespace PotatoWright
             if (!GUIManager.IsHeadless())
             {
                 Flags();
-                if (Plugin.TestBuild)
-                {
-                    GameObject garland = PrefabManager.Instance.GetPrefab("piece_FairylightGarland");
-                    Transform ps = garland ? garland.transform.Find("Particle System") : null;
-                    FeyTemplate = ps ? ps.gameObject : null;
-                }
             }
             AddSpot("PotatoWright_HangLantern", "piece_potatowright_hang_lantern", Lantern, "forge", new[] { new RequirementConfig("Bronze", 1, 0, true), new RequirementConfig("Resin", 2, 0, true) });
             AddCopied("PotatoWright_HangLanternHooded", "piece_potatowright_hang_lantern_hooded", LanternHooded, "piece_hoodedlantern");
@@ -116,11 +109,6 @@ namespace PotatoWright
             AddBrazier();
             AddSpot("PotatoWright_HangHerbs", "piece_potatowright_hang_herbs", Herbs, "piece_workbench", new[] { new RequirementConfig("Thistle", 1, 0, true), new RequirementConfig("Dandelion", 2, 0, true) });
             AddSpot("PotatoWright_HangBunting", "piece_potatowright_bunting", Bunting, "piece_workbench", new[] { new RequirementConfig("LeatherScraps", 2, 0, true), new RequirementConfig("Raspberry", 2, 0, true) });
-            if (Plugin.TestBuild)
-            {
-                AddSpot("PotatoWright_HangFish", "piece_potatowright_hang_fish", Fish, "piece_workbench", new[] { new RequirementConfig("FishRaw", 2, 0, true) }, null, false);
-                AddSpot("PotatoWright_HangFey", "piece_potatowright_fey", Fey, "piece_workbench", new[] { new RequirementConfig("Resin", 2, 0, true) }, null, false);
-            }
         }
 
         // ------------------------------------------------------------------ costs
@@ -552,12 +540,6 @@ namespace PotatoWright
                 colliderCentre = new Vector3(0f, -0.28f, 0f);
                 colliderSize = new Vector3(0.35f, 0.5f, 0.35f);
             }
-            else if (kind == Fish)
-            {
-                FishVisual(visual, renderers);
-                colliderCentre = new Vector3(0f, -0.4f, 0f);
-                colliderSize = new Vector3(0.15f, 0.65f, 0.6f);
-            }
             else
             {
                 float bottom = LanternVisual(visual, kind, renderers);
@@ -744,25 +726,6 @@ namespace PotatoWright
         {
             GameObject go = PrefabManager.Instance.GetPrefab(prefab);
             return go ? go.GetComponentsInChildren<MeshRenderer>(true).FirstOrDefault(r => r.GetComponent<MeshFilter>()) : null;
-        }
-
-        // Test builds only (removed from the hammer): perch, pike, perch hung by the tail.
-        private static void FishVisual(GameObject visual, List<Renderer> renderers)
-        {
-            GameObject perch = PrefabManager.Instance.GetPrefab("Fish1"), pike = PrefabManager.Instance.GetPrefab("Fish2");
-            MeshRenderer perchR = perch ? perch.GetComponentsInChildren<MeshRenderer>(true).FirstOrDefault(r => r.GetComponent<MeshFilter>()) : null;
-            MeshRenderer pikeR = pike ? pike.GetComponentsInChildren<MeshRenderer>(true).FirstOrDefault(r => r.GetComponent<MeshFilter>()) : null;
-            const float cord = 0.08f;
-            float[] along = { -0.2f, 0f, 0.2f };
-            for (int i = 0; i < 3; i++)
-            {
-                MeshRenderer src = (i == 1) ? pikeR : perchR;
-                Vector3 s = (i == 1) ? new Vector3(0.78f, 0.62f, 0.62f) : new Vector3(0.5f, 0.5f, 0.5f);
-                if (src)
-                {
-                    renderers.Add(MeshPart(visual, "fish", src.GetComponent<MeshFilter>().sharedMesh, src.sharedMaterial, new Vector3(-0.047f * s.y, -cord - 0.4f * s.x, along[i]), Quaternion.Euler(0f, 0f, -90f), s));
-                }
-            }
         }
 
         internal static Renderer MeshPart(GameObject parent, string name, Mesh mesh, Material material, Vector3 position, Quaternion rotation, Vector3 scale)
