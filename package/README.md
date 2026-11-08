@@ -8,7 +8,9 @@ Building pieces for Valheim that the game doesn't have: wooden mannequins to dre
 
 - Build them with the hammer: 8 Fine Wood, 2 Bronze Nails and 4 Tar, at a workbench, like the game's armor stand.
 - Dress them like an armor stand: armor, capes and weapons. Painted armor shows on the body, and comes off with it.
-- Pick a colour before you build, in the panel beside the build menu: natural wood, or any hue with saturation and brightness. The same panel switches the wooden base on or off. To recolour a mannequin you've already built, place one of that colour on it.
+- Pick a colour before you build, in the panel beside the build menu (it opens once you pick a mannequin): natural wood, or any hue with saturation and brightness. The same panel switches the wooden base on or off. To recolour a mannequin you've already built, place one of that colour on it.
+
+![The build menu on the Mannequins entry, with the mannequin colour panel beside it](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/menu-mannequin-color.jpg)
 
 ![A mannequin in armor holding a crystal battleaxe](https://raw.githubusercontent.com/TheRealRel/PotatoWright/main/docs/images/mannequin-crystal-axe.jpg)
 
