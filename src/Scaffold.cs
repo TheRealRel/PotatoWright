@@ -310,6 +310,17 @@ namespace PotatoWright
             ReshapeNear(this, false);
         }
 
+        // Build On Ship attaches a frame to its ship once the ship has loaded (it can load after the frame): take the shape
+        // again then, so its legs go by the ship (OnSameShip).
+        private void OnTransformParentChanged()
+        {
+            if (Live)
+            {
+                CancelInvoke(nameof(Reshape));
+                Invoke(nameof(Reshape), CheckDelay);
+            }
+        }
+
         private UnityEngine.GameObject Part(string name)
         {
             UnityEngine.Transform t = transform.Find("frame/" + name);
@@ -404,10 +415,11 @@ namespace PotatoWright
             UnityEngine.Vector3 up = transform.up;
             UnityEngine.Vector3 start = Spot(i) + up * 0.15f;
             int n = UnityEngine.Physics.BoxCastNonAlloc(start, new UnityEngine.Vector3(0.17f, 0.05f, 0.17f), -up, s_casts, transform.rotation, 0.1f + LegReach, Mask, UnityEngine.QueryTriggerInteraction.Ignore);
+            Ship ship = GetComponentInParent<Ship>();
             for (int k = 0; k < n; k++)
             {
                 UnityEngine.Collider c = s_casts[k].collider;
-                if (c == null || c.transform.IsChildOf(transform))
+                if (c == null || c.transform.IsChildOf(transform) || !OnSameShip(c, ship))
                 {
                     continue;
                 }
@@ -456,6 +468,13 @@ namespace PotatoWright
             return best;
         }
 
+        // A frame on a ship (Build On Ship parents it to the ship) moves with the ship, so only the ship and what is built on
+        // it can be under its legs (test-m: a leg frame on a longship reached 8 m down to the seabed). On land, anything.
+        private static bool OnSameShip(UnityEngine.Collider c, Ship ship)
+        {
+            return ship == null || c.GetComponentInParent<Ship>() == ship;
+        }
+
         // How far below the foot of post i the nearest thing is (the same box as StandsOnSomething, swept down to
         // LongReach; what it touches before it moves stands beside the leg, not under it).
         private bool LongLeg(int i, out float length, out string on)
@@ -465,10 +484,11 @@ namespace PotatoWright
             int n = UnityEngine.Physics.BoxCastNonAlloc(start, new UnityEngine.Vector3(0.17f, 0.05f, 0.17f), -up, s_casts, transform.rotation, 0.1f + LongReach, Mask, UnityEngine.QueryTriggerInteraction.Ignore);
             float best = -1f;
             on = null;
+            Ship ship = GetComponentInParent<Ship>();
             for (int k = 0; k < n; k++)
             {
                 UnityEngine.Collider c = s_casts[k].collider;
-                if (c == null || c.transform.IsChildOf(transform) || s_casts[k].distance <= 0f)
+                if (c == null || c.transform.IsChildOf(transform) || s_casts[k].distance <= 0f || !OnSameShip(c, ship))
                 {
                     continue;
                 }
